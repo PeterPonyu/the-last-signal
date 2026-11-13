@@ -69,9 +69,11 @@ export const COMBAT = {
 
 export const ASSETS = {
   guideActions:'road-guides.png',
-  heroActions: 'zeyu-actions-v2.png', enemyActions: 'hollow-actions.png', companionActions: 'dawnweaver-actions.png',
-  heroReactions:'zeyu-reactions.png', companionSupport:'dawnweaver-support.png',
-  sentinelActions:'sentinel-actions.png', cantorActions:'cantor-actions.png', solActions:'sol-actions.png',
+  heroActions: 'hero-painted.png', companionActions: 'dawnweaver-painted.png',
+  heroReactions:'hero-painted.png', companionSupport:'dawnweaver-painted.png',
+  solActions:'sol-painted.png',
+  commonCast:'common-cast.png',gardenCast:'garden-cast.png',causewayCast:'causeway-cast.png',courtCast:'court-cast.png',
+  rootBoss:'root-boss.png',bellBoss:'bell-boss.png',crownBoss:'crown-boss.png',keepersCast:'keepers-cast.png',radiance:'radiance-effects.png',worldDetails:'world-details.png',openGate:'gateways-open.png',
   heroPortrait:'zeyu-golden.png', companionPortrait:'dawnweaver.png',
-  props: 'battlefield-props.png', garden: AREAS[0].art, causeway: AREAS[1].art, court: AREAS[2].art
+  props: 'battlefield-props.png', garden:'garden-floor.png',causeway:'causeway-floor.png',court:'court-floor.png'
 };

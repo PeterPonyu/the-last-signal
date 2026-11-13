@@ -12,9 +12,9 @@ export function createRun(seed = 7251, difficulty = 'normal') {
   if (!Object.hasOwn(DIFFICULTIES,difficulty)) difficulty = 'normal';
   const setting=DIFFICULTIES[difficulty];
   const run={mode:'running',difficulty,seed:seed>>>0,initialSeed:seed>>>0,time:0,areaTime:0,areaIndex:0,
-    kills:0,level:1,nextId:1,spawnClock:2,fireClock:0,bossSpawned:false,ending:null,inputBuffer:null,
+    kills:0,level:1,nextId:1,spawnClock:2,fireClock:0,bossSpawned:false,ending:null,inputBuffer:null,autoPowers:false,
     upgrades:{},rewards:[],routeChoices:[],storyTokens:[],enemies:[],shots:[],hazards:[],pickups:[],effects:[],corpses:[],events:[],areaResults:[],
-    stats:{damageTaken:0,hitsTaken:0,healing:0,spawned:0,meleeKills:0,allyKills:0,coverBlocks:0,beacons:0,peakEnemies:0,guardBreaks:0,shieldBlocked:0,solKills:0,lanterns:0,retiredEnemies:0,abilities:{slash:0,dash:0,pulse:0,sunbreak:0}},
+    stats:{damageTaken:0,hitsTaken:0,healing:0,spawned:0,meleeKills:0,allyKills:0,coverBlocks:0,beacons:0,peakEnemies:0,guardBreaks:0,shieldBlocked:0,solKills:0,lanterns:0,retiredEnemies:0,projectileHits:0,projectileDamage:0,allyCasts:0,solCasts:0,abilities:{slash:0,dash:0,pulse:0,sunbreak:0}},
     companion:{x:AREAS[0].spawn.x-50,y:AREAS[0].spawn.y+60,faceX:1,moving:false,walkPhase:0,idlePhase:0,cast:0,mend:0,ward:0,targetId:null,fireClock:0.7,mendCooldown:14},
     sol:{active:false,x:AREAS[0].spawn.x-80,y:AREAS[0].spawn.y,faceX:1,moving:false,walkPhase:0,idlePhase:0,pounce:0,ward:0,fireClock:1,wardCooldown:8,targetId:null},
     player:{...AREAS[0].spawn,vx:0,vy:0,hp:setting.health,maxHp:setting.health,speed:205,damage:25,bladePower:1,bladeRange:0,bladeArc:0,bladeCooldown:1,breakCooldown:1,fireInterval:0.42,fireRange:500,volley:false,finisher:false,armor:0,wardLevel:0,wardClock:18,mendBonus:0,mendInterval:18,dashInterval:2.5,faceX:1,faceY:0,
@@ -96,6 +96,7 @@ function hurtPlayer(run,amount){
 }
 function hit(run,enemy,damage,source='hero'){
   if(enemy.hp<=0||run.mode!=='running'||run.gateOpen||enemy.phaseShift>0)return;
+  const beforeHp=enemy.hp,absorbed=(enemy.guarded||enemy.type==='sentinel')&&enemy.guardBroken<=0&&!['melee','sunbreak','pulse'].includes(source);
   if((enemy.guarded||enemy.type==='sentinel')&&enemy.guardBroken<=0){
     if(source==='melee'||source==='sunbreak'||source==='pulse'){
       enemy.guardBroken=2.4;enemy.stagger=0.5;run.stats.guardBreaks++;run.events.push('guard-break');
@@ -110,7 +111,10 @@ function hit(run,enemy,damage,source='hero'){
   }else enemy.hp=nextHp;
   enemy.hit=0.22;
   if(!enemy.boss&&(source==='melee'||source==='sunbreak')){enemy.stagger=Math.max(enemy.stagger,0.25);enemy.attack=0;enemy.spell=0;enemy.charge=0;enemy.chargeWarning=0;enemy.chargeRecovery=0.4;enemy.attackCooldown=0.6;}
-  run.effects.push({kind:'hit',x:enemy.x,y:enemy.y-25,age:0,life:0.18});
+  const dealt=beforeHp-enemy.hp;
+  run.effects.push({kind:'hit',x:enemy.x,y:enemy.y-32,age:0,life:0.34,source,absorbed,value:Math.ceil(dealt)});
+  if(dealt>0)run.effects.push({kind:'outgoing',x:enemy.x,y:enemy.y-(enemy.boss?232:enemy.lieutenant?140:118),value:Math.ceil(dealt),absorbed,source,age:0,life:0.65});
+  if(['hero','ally','sol'].includes(source)){run.stats.projectileHits++;run.stats.projectileDamage+=dealt;}
   if(enemy.hp>0)return;
   run.kills++;creditDefeat(run,enemy);if(source==='melee'||source==='sunbreak')run.stats.meleeKills++;if(source==='ally'||source==='sol')run.stats.allyKills++;if(source==='sol')run.stats.solKills++;
   run.corpses.push({...enemy,deathAge:0,life:(enemy.boss?REMAINS.bossHold:REMAINS.hold)+REMAINS.fade});run.corpses=run.corpses.slice(-REMAINS.limit);
@@ -200,6 +204,7 @@ function nearestTarget(run,body,range){
 function shoot(run,body,target,damage,source='hero',hostile=false,angleOffset=0){
   const angle=Math.atan2(target.y-body.y,target.x-body.x)+angleOffset,speed=hostile?225:source==='hero'?650:480;
   run.shots.push({x:body.x,y:body.y,vx:Math.cos(angle)*speed,vy:Math.sin(angle)*speed,life:hostile?4:1.15,damage,source,ally:source==='ally'||source==='sol',hostile});
+  run.effects.push({kind:'muzzle',x:body.x,y:body.y-32,angle,source,hostile,age:0,life:0.25});
 }
 function castEnemySpell(run,e){
   const setting=DIFFICULTIES[run.difficulty],aim={x:e.aimX,y:e.aimY};
@@ -284,20 +289,20 @@ function updateParty(run,dt){
   for(const key of ['cast','mend','ward','mendCooldown'])ally[key]=Math.max(0,(ally[key]||0)-dt);
   ally.fireClock-=dt;ally.idlePhase+=dt;
   if(castBefore>COMBAT.allyCast.duration-COMBAT.allyCast.impact&&ally.cast<=COMBAT.allyCast.duration-COMBAT.allyCast.impact){
-    const target=run.enemies.find(e=>e.id===ally.targetId&&e.hp>0);if(target&&clearPath(ally,target,areaObstacles(run),3))shoot(run,ally,target,21+run.areaIndex*5,'ally');
+    const target=run.enemies.find(e=>e.id===ally.targetId&&e.hp>0);if(target&&clearPath(ally,target,areaObstacles(run),3)){shoot(run,ally,target,(21+run.areaIndex*5)*0.75,'ally');run.stats.allyCasts++;}
   }
   if(mendBefore>COMBAT.mend.duration-COMBAT.mend.impact&&ally.mend<=COMBAT.mend.duration-COMBAT.mend.impact){heal(run,setting.heal+p.mendBonus);run.effects.push({kind:'mend',x:p.x,y:p.y,age:0,life:0.8});run.events.push('mend');}
   ally.moving=false;
   if(ally.cast<=0&&ally.mend<=0)followPartyMember(run,ally,48,255,dt,16);
   if(ally.mendCooldown<=0&&p.hp<p.maxHp&&ally.cast<=0){ally.mend=COMBAT.mend.duration;ally.mendCooldown=p.mendInterval;ally.moving=false;}
-  else if(ally.fireClock<=0&&ally.cast<=0&&ally.mend<=0){const target=nearestTarget(run,ally,480);if(target){ally.cast=COMBAT.allyCast.duration;ally.fireClock=1.2;ally.targetId=target.id;ally.faceX=target.x>=ally.x?1:-1;}}
+  else if(ally.fireClock<=0&&ally.cast<=0&&ally.mend<=0){const target=nearestTarget(run,ally,480);if(target){ally.cast=COMBAT.allyCast.duration;ally.fireClock=0.9;ally.targetId=target.id;ally.faceX=target.x>=ally.x?1:-1;}}
   const sol=run.sol;if(!sol.active)return;
   const before=sol.pounce;for(const key of ['pounce','ward','wardCooldown'])sol[key]=Math.max(0,sol[key]-dt);sol.fireClock-=dt;sol.idlePhase+=dt;
-  if(before>0.22&&sol.pounce<=0.22){const target=run.enemies.find(e=>e.id===sol.targetId&&e.hp>0);if(target&&clearPath(sol,target,areaObstacles(run),3))shoot(run,sol,target,19,'sol');}
+  if(before>0.22&&sol.pounce<=0.22){const target=run.enemies.find(e=>e.id===sol.targetId&&e.hp>0);if(target&&clearPath(sol,target,areaObstacles(run),3)){shoot(run,sol,target,19*1.2/1.65,'sol');run.stats.solCasts++;}}
   sol.moving=false;
   if(sol.pounce<=0&&sol.ward<=0)followPartyMember(run,sol,-48,280,dt,13);
   if(sol.wardCooldown<=0&&p.hp<p.maxHp*0.75&&p.shield<=0){sol.ward=0.8;sol.wardCooldown=18;p.shield=18;p.shieldTime=6;ally.ward=0.8;run.events.push('ward');}
-  else if(sol.fireClock<=0&&sol.pounce<=0&&sol.ward<=0){const target=nearestTarget(run,sol,350);if(target){sol.pounce=0.55;sol.fireClock=1.65;sol.targetId=target.id;sol.faceX=target.x>=sol.x?1:-1;}}
+  else if(sol.fireClock<=0&&sol.pounce<=0&&sol.ward<=0){const target=nearestTarget(run,sol,350);if(target){sol.pounce=0.55;sol.fireClock=1.2;sol.targetId=target.id;sol.faceX=target.x>=sol.x?1:-1;}}
 }
 function updateProjectiles(run,dt){
   const p=run.player,obstacles=areaObstacles(run);
@@ -310,7 +315,14 @@ function updateProjectiles(run,dt){
     else for(const e of run.enemies)if(e.hp>0&&e.warning<=0){const t=segmentCircleTime(ax,ay,bx,by,e.x,e.y,e.radius+7);if(t!==null&&t<nearest){nearest=t;collision={kind:'enemy',enemy:e};}}
     if(!shot.hostile)for(const h of run.hazards)if(h.anchorHp>0&&h.life>0){const t=segmentCircleTime(ax,ay,bx,by,h.x,h.y,24);if(t!==null&&t<nearest){nearest=t;collision={kind:'anchor',anchor:h};}}
     shot.x=ax+(bx-ax)*(collision?nearest:1);shot.y=ay+(by-ay)*(collision?nearest:1);shot.life-=dt;
-    if(collision){shot.life=0;if(collision.kind==='cover'){if(shot.hostile)run.stats.coverBlocks++;run.effects.push({kind:'cover',x:shot.x,y:shot.y,age:0,life:0.28,hostile:shot.hostile});}else if(collision.kind==='anchor'){collision.anchor.anchorHp=Math.max(0,collision.anchor.anchorHp-shot.damage);if(!collision.anchor.anchorHp)collision.anchor.life=0;}else if(collision.kind==='player')hurtPlayer(run,shot.damage);else hit(run,collision.enemy,shot.damage,shot.source||(shot.ally?'ally':'hero'));}
+    if(collision){
+      shot.life=0;
+      run.effects.push({kind:'contact',x:shot.x,y:shot.y-20,angle:Math.atan2(shot.vy,shot.vx),source:shot.source,hostile:shot.hostile,blocked:collision.kind==='cover'||collision.enemy?.phaseShift>0,age:0,life:0.42});
+      if(collision.kind==='cover'){if(shot.hostile)run.stats.coverBlocks++;run.effects.push({kind:'cover',x:shot.x,y:shot.y-20,age:0,life:0.38,hostile:shot.hostile});}
+      else if(collision.kind==='anchor'){collision.anchor.anchorHp=Math.max(0,collision.anchor.anchorHp-shot.damage);if(!collision.anchor.anchorHp){collision.anchor.life=0;run.effects.push({kind:'guard-break',x:shot.x,y:shot.y,age:0,life:0.55});}}
+      else if(collision.kind==='player')hurtPlayer(run,shot.damage);
+      else hit(run,collision.enemy,shot.damage,shot.source||(shot.ally?'ally':'hero'));
+    }
     if(run.mode!=='running')break;
   }
   run.shots=run.shots.filter(s=>s.life>0);
@@ -318,6 +330,16 @@ function updateProjectiles(run,dt){
 function ageVisuals(run,dt){
   for(const fx of run.effects)fx.age+=dt;run.effects=run.effects.filter(e=>e.age<e.life).slice(-160);
   for(const e of run.corpses){e.deathAge+=dt;e.life-=dt;}run.corpses=run.corpses.filter(e=>e.life>0);
+}
+export function useAutoPowers(run){
+  const p=run.player;
+  if(!run.autoPowers||run.mode!=='running'||run.gateOpen||run.inputBuffer||p.hurt>0||p.dash>0||p.slash>0||p.sunbreak>0||p.cast>0)return;
+  const target=nearestTarget(run,p,COMBAT.sunbreak.range);if(!target)return;
+  const nearby=run.enemies.filter(e=>e.hp>0&&e.warning<=0&&distance(e,p)<200);
+  if(p.pulseCooldown<=0&&(nearby.length>=3||nearby.some(e=>e.boss&&distance(e,p)<150))){useAbility(run,'pulse');return;}
+  const aim={x:target.x-p.x,y:target.y-p.y};
+  if(p.sunbreakCooldown<=0&&(target.boss||target.lieutenant||nearby.length>=2)){requestAbility(run,'sunbreak',aim);return;}
+  if(p.slashCooldown<=0&&distance(target,p)<COMBAT.slash.range+p.bladeRange)requestAbility(run,'slash',aim);
 }
 export function update(run,input,dt){
   if(!Number.isFinite(dt)||dt<=0||dt>0.1)throw new RangeError('Simulation step must be finite and between 0 and 0.1 seconds');
@@ -327,6 +349,7 @@ export function update(run,input,dt){
   }
   if(run.mode!=='running')return;
   const p=run.player,area=AREAS[run.areaIndex],setting=DIFFICULTIES[run.difficulty];
+  useAutoPowers(run);
   for(const actor of [p,run.companion,run.sol,...run.enemies]){actor.previousX=actor.x;actor.previousY=actor.y;}
   run.time+=dt;run.areaTime+=dt;p.wardClock-=dt;if(p.wardLevel&&p.wardClock<=0){p.shield=22*p.wardLevel;p.shieldTime=8;p.wardClock=18;run.events.push('ward');}if(run.rewards.includes('grove'))heal(run,dt*0.35);run.navClock-=dt;p.idlePhase+=dt;
   if(run.navClock<=0){run.navigation=navigationField(areaObstacles(run),p);run.navClock=0.4;}

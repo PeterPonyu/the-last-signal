@@ -2,6 +2,7 @@ import {JOURNEY} from '../../content/journey.mjs';
 import {WORLD} from '../../content/game.mjs';
 import {distance} from '../game/geometry.mjs';
 import {restorationAt,visibleAt} from './presentation.mjs';
+import {drawWorldDetail} from './raster-details.mjs';
 
 const patches=new WeakMap();
 function foliageFor(area){
@@ -22,21 +23,22 @@ export function drawWorld(ctx,images,area,run,camera,reduced){
   // Reflect adjacent texture panels so edges meet without stretching the floor.
   for(let row=Math.floor(camera.y/th);row<=Math.floor((camera.y+camera.height)/th);row++)for(let col=Math.floor(camera.x/tw);col<=Math.floor((camera.x+camera.width)/tw);col++){
     ctx.save();ctx.translate(col*tw+(col%2?tw:0),row*th+(row%2?th:0));ctx.scale(col%2?-1:1,row%2?-1:1);
-    ctx.drawImage(image,image.width*0.1,image.height*0.12,image.width*0.8,image.height*0.76,0,0,tw,th);ctx.restore();
+    // The camera can sit between screen pixels. Overlap by one world pixel so
+    // filtered texture edges cannot expose a hairline of cleared canvas.
+    ctx.drawImage(image,image.width*0.1,image.height*0.12,image.width*0.8,image.height*0.76,-0.5,-0.5,tw+1,th+1);ctx.restore();
   }
   ctx.lineJoin='round';ctx.lineCap='round';
   ctx.lineWidth=5;ctx.strokeStyle='#c2a66e55';ctx.strokeRect(WORLD.left-20,WORLD.top-20,WORLD.right-WORLD.left+40,WORLD.bottom-WORLD.top+40);
   ctx.fillStyle=run.areaIndex===0?'#101b1726':'#100e1820';ctx.fillRect(0,0,WORLD.width,WORLD.height);
   for(const b of run.beacons)if(b.charge>0){ctx.save();ctx.globalAlpha=b.charge;glow(ctx,b.x,b.y,230,'#ffcd6532');ctx.restore();}
   const party=[run.player,run.companion,...(run.sol.active?[run.sol]:[])];
+  const waves=run.effects.filter(f=>['pulse','lantern','restore'].includes(f.kind));
   for(const patch of foliageFor(area)){
     if(!visibleAt(patch,camera,30))continue;
     const warm=restorationAt(patch,run.beacons),near=party.find(a=>distance(a,patch)<45);
-    const wave=run.effects.find(f=>['pulse','lantern','restore'].includes(f.kind)&&Math.abs(distance(f,patch)-f.age/f.life*(f.kind==='restore'?230:210))<24);
+    const wave=waves.find(f=>Math.abs(distance(f,patch)-f.age/f.life*(f.kind==='restore'?230:210))<24);
     const bend=(reduced?0:Math.sin(run.time*1.7+patch.phase)*2)+(near?(patch.x-near.x)*0.18:0)+(wave?(patch.x-wave.x)*0.035:0);
-    ctx.strokeStyle=warm>0.35?'#ad9e5d99':run.areaIndex===0?'#6b7d4c88':'#8b795d66';ctx.lineWidth=1.5;
-    ctx.beginPath();for(let j=-1;j<=1;j++){ctx.moveTo(patch.x+j*3,patch.y+22);ctx.quadraticCurveTo(patch.x+j*6+bend,patch.y+16,patch.x+j*5+bend,patch.y+22-patch.size);}ctx.stroke();
-    if(warm>0.5){ctx.fillStyle='#f8d983';ctx.beginPath();ctx.arc(patch.x+bend,patch.y+22-patch.size,2.3,0,Math.PI*2);ctx.fill();}
+    drawWorldDetail(ctx,images,12+run.areaIndex,patch.x+bend,patch.y+22,patch.size*2.5,warm>0.35?0.9:0.6,bend*0.01);
   }
 }
 export function drawAmbient(ctx,run,camera,reduced){

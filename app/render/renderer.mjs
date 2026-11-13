@@ -1,8 +1,8 @@
-import {drawRig} from './actors.mjs';
+import {drawCast} from './cast.mjs';
 import {drawCampaignTerrain,drawCampaignObjectives,campaignRoads} from './campaign.mjs';
 import {JOURNEY} from '../../content/journey.mjs';
 import {corpseAppearance} from '../game/journey.mjs';
-import {drawLandmark,drawGuide,drawGateway,drawRoleAdornment} from './journey.mjs';
+import {drawLandmark,drawGuide,drawGateway} from './journey.mjs';
 import { WORLD, AREAS } from '../../content/game.mjs';
 import { clamp, distance } from '../game/geometry.mjs';
 import { heroPose, hollowPose, companionPose, solPose } from '../game/animation.mjs';
@@ -34,7 +34,8 @@ export function drawBattlefield(ctx, canvas, images, run, reduced, previousCamer
   const drawActor=(e,pose,height,opacity=1)=>{
     const kind=e.hero?'hero':e.companion?'companion':e.sol?'sol':'enemy';
     drawActorEnergy(ctx,e,kind,run,reduced,false);
-    if(!drawRig(ctx,e,run.time,reduced,opacity))drawSprite(ctx,images,pose,e.x,e.y,height,e.faceX,opacity,actorMotion(e,pose,reduced));
+    if(kind==='enemy')drawCast(ctx,images,e,run.time,reduced,opacity);
+    else drawSprite(ctx,images,pose,e.x,e.y,height,e.faceX,opacity,actorMotion(e,pose,reduced));
     drawActorEnergy(ctx,e,kind,run,reduced,true);
   };
   const ring=(x,y,r,color,width=2)=>{ctx.strokeStyle=color;ctx.lineWidth=width;ctx.beginPath();ctx.arc(x,y,r,0,Math.PI*2);ctx.stroke();};
@@ -46,10 +47,10 @@ export function drawBattlefield(ctx, canvas, images, run, reduced, previousCamer
   const prop=(p,opacity=1)=>sprite(images.props,2,{row:Math.floor(p.type/4),column:p.type%4},p.x,p.y,p.height,0.91,1,opacity);
   ctx.clearRect(0,0,viewWidth,viewHeight);ctx.save();ctx.translate(-camera.x,-camera.y);
   drawWorld(ctx,images,area,run,camera,reduced);
-  drawCampaignTerrain(ctx,run,camera,reduced);
-  drawLandmark(ctx,run,camera,reduced);
-  drawCampaignObjectives(ctx,run,camera,reduced,uiScale);
-  drawGateway(ctx,run,camera,reduced,guidance,uiScale);
+  drawCampaignTerrain(ctx,run,camera,reduced,images);
+  drawLandmark(ctx,run,camera,reduced,images);
+  drawCampaignObjectives(ctx,run,camera,reduced,uiScale,images);
+  drawGateway(ctx,run,camera,reduced,guidance,uiScale,images);
   for(const [index,b] of run.beacons.entries()){
     const near=distance(b,run.player)<78;
     ctx.fillStyle=b.charge===1?'#f9c65a24':'#07181555';ctx.beginPath();ctx.arc(b.x,b.y+22,78,0,Math.PI*2);ctx.fill();
@@ -67,7 +68,7 @@ export function drawBattlefield(ctx, canvas, images, run, reduced, previousCamer
   drawEffects(ctx,images,run,camera,reduced,true,uiScale);
   for(const h of run.hazards){drawHazardImpact(ctx,h,reduced);drawDanger(ctx,h,uiScale);}
   for(const item of run.pickups)prop({...item,type:5,height:56});
-  for(const e of run.corpses){if(!visibleAt(e,camera))continue;const remains=corpseAppearance(e);drawShadow(ctx,e,e.boss?145:94,remains.opacity);if(!drawRig(ctx,e,run.time,reduced,remains.opacity))drawSprite(ctx,images,hollowPose(e),e.x,e.y,e.boss?145:e.runner?76:94,e.faceX,remains.opacity,remains.motion);drawDefeatEnergy(ctx,e,reduced);}
+  for(const e of run.corpses){if(!visibleAt(e,camera))continue;const remains=corpseAppearance(e);drawShadow(ctx,e,e.boss?145:94,remains.opacity);drawCast(ctx,images,e,run.time,reduced,remains.opacity);drawDefeatEnergy(ctx,e,reduced);}
   const actors=sceneryFor(area).filter(e=>visibleAt(e,camera));
   for(const o of run.lanterns)if(visibleAt(o,camera))actors.push({...o,prop:true,lantern:true,type:7,height:100});
   for(const b of run.beacons)if(visibleAt(b,camera))actors.push({...b,prop:true,type:4,height:94});
@@ -94,12 +95,11 @@ export function drawBattlefield(ctx, canvas, images, run, reduced, previousCamer
       if(e.spell>0){ring(e.x,e.y,40,'#9cffe9',3);ctx.setLineDash([7,9]);ctx.strokeStyle='#a8f0e7aa';ctx.beginPath();ctx.moveTo(e.x,e.y);ctx.lineTo(e.aimX,e.aimY);ctx.stroke();ctx.setLineDash([]);}
       drawActor(e,hollowPose(e),e.boss?145:e.runner?76:e.type==='sentinel'?106:94,e.hp<=0?Math.max(0.1,1-e.deathAge/0.8):e.hit>0?0.8:1);
       if(e.hp<=0)continue;
-      drawRoleAdornment(ctx,e,run.time,reduced);
       if((e.guarded||e.type==='sentinel')&&e.guardBroken<=0)drawSymbol(ctx,'shield',e.x+27,e.y-40,23);
 
-      if(e.type==='cantor')drawSymbol(ctx,'bell',e.x,e.y-72,25);
-      if(e.boss)drawSymbol(ctx,'boss',e.x,e.y-117,32);
-      if(e.hp<e.maxHp&&!e.boss){ctx.fillStyle='#100e0e';ctx.fillRect(e.x-17,e.y-64,34,4);ctx.fillStyle='#a9dfcd';ctx.fillRect(e.x-17,e.y-64,34*e.hp/e.maxHp,4);}
+      if(e.type==='cantor')drawSymbol(ctx,'bell',e.x,e.y-102,25);
+      if(e.boss)drawSymbol(ctx,'boss',e.x,e.y-224,28);
+      if(e.hp<e.maxHp&&!e.boss){ctx.fillStyle='#100e0e';ctx.fillRect(e.x-17,e.y-(e.lieutenant?120:100),34,4);ctx.fillStyle='#a9dfcd';ctx.fillRect(e.x-17,e.y-(e.lieutenant?120:100),34*e.hp/e.maxHp,4);}
     }
   }
   drawProjectiles(ctx,run.shots,camera,reduced,run.areaIndex);
