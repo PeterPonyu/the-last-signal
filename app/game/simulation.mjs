@@ -216,7 +216,10 @@ function castEnemySpell(run,e){
   const radial=count=>{for(let i=0;i<count;i++)shoot(run,e,aim,e.damage,'enemy',true,i*Math.PI*2/count);};
   const skill=e.castSkill||e.skill||(e.boss?['rootfall','fan','crown'][run.areaIndex]:'bolt');
   if(skill==='nurture'){
-    for(const ally of run.enemies)if(!ally.boss&&ally!==e&&distance(e,ally)<230)ally.hp=Math.min(ally.maxHp,ally.hp+18);
+    const support=COMBAT.nurture;
+    for(const ally of run.enemies)if(!ally.boss&&ally!==e&&ally.hp>0&&ally.hp<ally.maxHp&&run.time>=(ally.nurtureUntil||0)&&distance(e,ally)<support.range){
+      ally.hp=Math.min(ally.maxHp,ally.hp+support.amount);ally.nurtureUntil=run.time+support.recipientCooldown;
+    }
     run.effects.push({kind:'mend',x:e.x,y:e.y,age:0,life:0.8,hostile:true});mark(aim,58,0.25);
   }
   if(skill==='forge'){const anchor=mark(aim,165,1.4,90);anchor.anchorHp=40;}

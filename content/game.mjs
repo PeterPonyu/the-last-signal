@@ -63,6 +63,7 @@ export const COMBAT = {
   sunbreak: {duration:0.66, impact:0.28, cooldown:10, range:285},
   cast: {duration:0.32}, dash: {duration:0.2, cooldown:2.5},
   allyCast: {duration:0.55, impact:0.27}, mend: {duration:0.8, impact:0.42},
+  nurture: {amount:18, range:230, recipientCooldown:4},
   hurt: {duration:0.28}, death: {duration:0.8},
   charge: {windup:0.8, duration:0.42, recovery:0.65}
 };

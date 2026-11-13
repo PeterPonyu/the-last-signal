@@ -47,7 +47,8 @@ function finishRoute(run,route){
   if(route.reward==='memory')run.player.damage*=1.12;
   if(route.reward==='cover'||route.reward==='guard')run.player.armor+=0.06;
  }
- run.player.hp=Math.min(run.player.maxHp,run.player.hp+28);campaignNotice(run,route.story);run.events.push('route-complete');
+ const healed=Math.min(28,run.player.maxHp-run.player.hp);run.player.hp+=healed;run.stats.healing+=healed;
+ campaignNotice(run,route.story);run.events.push('route-complete');
 }
 export function updateProgression(run,dt){
  const c=run.campaign,def=CAMPAIGN[run.areaIndex],p=run.player;
