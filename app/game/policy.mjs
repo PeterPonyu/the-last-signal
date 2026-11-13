@@ -19,6 +19,7 @@ export function createPolicy(policy='tactical'){
   if(!run.npcMet&&distance(p,c.npcs[0])<105)interact(run);
   const selected=c.routes.find(r=>r.id===c.choice),preferred=c.routes[(run.initialSeed+run.areaIndex)%2];
   if(c.stage>=1&&!c.choice&&distance(p,preferred)<110)interact(run);
+  if(selected?.status==='retry'&&distance(p,selected)<110)interact(run);
   if(policy==='stationary')return {};
   if(decision--<=0){
    decision=policy==='tactical'?5:14;
@@ -48,6 +49,7 @@ export function createPolicy(policy='tactical'){
    const target=near.find(e=>e.boss||e.lieutenant||e.guarded)||near[0];
    if(target){const aim={x:target.x-p.x,y:target.y-p.y};if(target.boss||target.lieutenant||near.length>2)requestAbility(run,'sunbreak',aim);if(distance(target,p)<108)requestAbility(run,'slash',aim);}
    if(near.filter(e=>distance(e,p)<190).length>=3||near.some(e=>e.boss&&distance(e,p)<165))useAbility(run,'pulse');
+   if(c.npcs.some(n=>n.state==='active'&&n.hp<n.maxHp*0.6&&distance(n,p)<200&&n.shield<=0))useAbility(run,'pulse');
    if(run.hazards.some(h=>h.warning<0.3&&distance(h,p)<h.radius&&distance(h,p)>=(h.inner||0)))requestAbility(run,'dash',steering);
   }
   return steering;

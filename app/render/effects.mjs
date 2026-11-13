@@ -100,7 +100,8 @@ export function drawEffects(ctx,images,run,camera,reduced,ground,uiScale=1){
       const text=(fx.absorbed?'Guard ':'')+'−'+fx.value;
       ctx.fillStyle=fx.absorbed?'#bed5d8':fx.source==='ally'?'#e1efff':'#ffe6a5';ctx.font=canvasFont('small',uiScale);ctx.textAlign='center';ctx.strokeStyle='#201b20';ctx.lineWidth=3;ctx.strokeText(text,fx.x,fx.y-30*t);ctx.fillText(text,fx.x,fx.y-30*t);
     }else if(fx.kind==='damage'){
-      ctx.fillStyle='#ffd2ba';ctx.font=canvasFont('number',uiScale);ctx.textAlign='center';ctx.strokeStyle='#291b1a';ctx.lineWidth=4;ctx.strokeText('−'+fx.value,fx.x,fx.y-25*t);ctx.fillText('−'+fx.value,fx.x,fx.y-25*t);
+      const y=fx.y-(fx.keeper?40*uiScale:0)-25*t;
+      ctx.fillStyle='#ffd2ba';ctx.font=canvasFont('number',uiScale);ctx.textAlign='center';ctx.strokeStyle='#291b1a';ctx.lineWidth=4;ctx.strokeText('−'+fx.value,fx.x,y);ctx.fillText('−'+fx.value,fx.x,y);
     }
     ctx.restore();
   }

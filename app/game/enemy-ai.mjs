@@ -1,5 +1,30 @@
 import {WORLD} from '../../content/game.mjs';
-import {clamp,distance,clearPath,directionTo} from './geometry.mjs';
+import {clamp,distance,clearPath,directionTo,navigationField,CELL} from './geometry.mjs';
+
+const targetFields=new WeakMap();
+export function targetNavigation(target,obstacles){
+ const cell=Math.floor(target.x/CELL)+':'+Math.floor(target.y/CELL),cached=targetFields.get(target);
+ if(cached?.cell===cell&&cached.obstacles===obstacles)return cached.field;
+ const field=navigationField(obstacles,target);targetFields.set(target,{cell,obstacles,field});return field;
+}
+
+export function enemyTarget(enemy,player,npcs,enemies,time,difficulty){
+ const targetById=id=>id===undefined||id==='hero'?player:npcs.find(n=>n.id===id&&n.state==='active'&&n.hp>0);
+ if(enemy.attack>0||enemy.spell>0||enemy.chargeWarning>0||enemy.charge>0)return targetById(enemy.focusId)||null;
+ if(enemy.boss||enemy.provokedUntil>time){enemy.focusId='hero';return player;}
+ const current=targetById(enemy.focusId);
+ if(current&&enemy.focusUntil>time)return current;
+ const cap=difficulty==='hard'?4:3,raider=enemy.runner||enemy.type==='skirmisher';
+ let selected=player,best=distance(enemy,player);
+ for(const npc of npcs){
+  const gap=distance(enemy,npc);
+  if(npc.state!=='active'||npc.hp<=0||gap>560)continue;
+  if(enemies.filter(e=>e!==enemy&&e.hp>0&&e.focusId===npc.id).length>=cap)continue;
+  const score=gap*(raider?0.65:0.9)-(enemy.focusId===npc.id?45:0);
+  if(score<best){selected=npc;best=score;}
+ }
+ enemy.focusId=selected===player?'hero':selected.id;enemy.focusUntil=time+0.65;return selected;
+}
 
 export function predictedTarget(player,seconds=0.2){
   const vx=clamp(player.vx||0,-205,205),vy=clamp(player.vy||0,-205,205);

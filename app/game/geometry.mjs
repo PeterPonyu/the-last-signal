@@ -72,17 +72,20 @@ export function navigationField(obstacles, target) {
   terrain.start=start;terrain.field=costs;return costs;
 }
 
-export function directionTo(body, target, obstacles, field) {
+export function navigationWaypoint(body, target, obstacles, field) {
   let point = target;const clearance=body.radius??18;
-  let escapeX=0,escapeY=0;
+  let escapeX=0,escapeY=0,firstNormal=null;
   for(const obstacle of obstacles){
     const limit=obstacle.radius+clearance+2;
     if(Math.abs(body.x-obstacle.x)>limit||Math.abs(body.y-obstacle.y)>limit)continue;
     const d=distance(body,obstacle);
-    if(d<=obstacle.radius+clearance+2){escapeX+=d?(body.x-obstacle.x)/d:1;escapeY+=d?(body.y-obstacle.y)/d:0;}
+    if(d<=obstacle.radius+clearance+2){const normal={x:d?(body.x-obstacle.x)/d:1,y:d?(body.y-obstacle.y)/d:0};firstNormal??=normal;escapeX+=normal.x;escapeY+=normal.y;}
   }
+  // Opposing surfaces can cancel their normals. Leave sideways instead of
+  // remaining trapped between overlapping scenery collision circles.
+  if(firstNormal&&Math.hypot(escapeX,escapeY)<1e-6){escapeX=firstNormal.y;escapeY=-firstNormal.x;if(escapeX*(target.x-body.x)+escapeY*(target.y-body.y)<0){escapeX=-escapeX;escapeY=-escapeY;}}
   const escapeLength=Math.hypot(escapeX,escapeY);
-  if(escapeLength>0)return {x:escapeX/escapeLength,y:escapeY/escapeLength};
+  if(escapeLength>0)return {x:body.x+escapeX/escapeLength*10,y:body.y+escapeY/escapeLength*10};
   if (!clearPath(body, target, obstacles, clearance+6)) {
     const i = indexAt(body), x = i % COLS, y = Math.floor(i / COLS);
     let best = Infinity;
@@ -101,9 +104,15 @@ export function directionTo(body, target, obstacles, field) {
         const candidate=centerAt(j),score=field[j]+distance(body,candidate)/CELL;
         if(score<best&&clearPath(body,candidate,obstacles,body.radius||18)){best=score;point=candidate;}
       }
-      if (point === target) return {x:0,y:0};
+      if (point === target) return null;
     }
   }
+  return point;
+}
+
+export function directionTo(body, target, obstacles, field) {
+  const point=navigationWaypoint(body,target,obstacles,field);
+  if(!point)return {x:0,y:0};
   const dx = point.x - body.x, dy = point.y - body.y, length = Math.hypot(dx,dy) || 1;
   return { x: dx / length, y: dy / length };
 }

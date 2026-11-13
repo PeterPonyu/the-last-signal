@@ -19,6 +19,8 @@ export const ANIMATIONS={
   causewayCast:castSheet(['chorister','processional','bellsmith']),
   courtCast:castSheet(['astral','justiciar','reaver']),
   rootBoss:bossSheet(),bellBoss:bossSheet(),crownBoss:bossSheet(),
-  keepersCast:{rows:6,columns:6,clips:Object.fromEntries(['smith','keeper','engineer','courier','archivist','guard'].flatMap((name,row)=>[['idle',1.8,true,[0,1]],['walk',0.7,true,[2,0,3,0]],['speak',1.4,true,[0,4,4,0]],['work',1.6,true,[0,5,5,0]]].map(([clip,duration,loop,order])=>[name+'-'+clip,painted(row,duration,loop,order)])))},
+  keepersCast:{rows:6,columns:6,clips:Object.fromEntries(
+    ['smith','keeper','engineer','courier','archivist','guard'].flatMap((name,row)=>[['idle',1.8,true,[0,1]],['walk',0.7,true,[2,0,3,0]],['speak',1.4,true,[0,4,4,0]],['work',1.6,true,[0,5,5,0]],['cast',0.6,false,[0,5,4,0]]].map(([clip,duration,loop,order])=>[name+'-'+clip,{...painted(row,duration,loop,order),...(clip==='cast'?{releaseAt:0.32/0.6,releaseFrame:2}:{})}]))
+  )},
   radiance:{rows:6,columns:6,clips:Object.fromEntries(['contact','blade','sun','mend','comet','hostile'].map((name,row)=>[name,painted(row,0.5)]))}
 };

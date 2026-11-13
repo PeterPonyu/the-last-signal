@@ -43,8 +43,9 @@ export function castPose(actor,time){
  const boss=actor.bossKind,name=actor.role||actor.type||(actor.skin==='cantor'?'cantor':actor.skin==='sentinel'?'sentinel':'walker');
  if(actor.npc||actor.body){
   if(!keepers.has(actor.body))return sampleClip('guideActions',actor.id,time);
+  if(actor.cast>0)return timed('keepersCast',actor.body+'-cast',actor.cast,0.6);
   const action=actor.moving?'walk':actor.working?'work':actor.met?'speak':'idle';
-  return sampleClip('keepersCast',actor.body+'-'+action,time);
+  return sampleClip('keepersCast',actor.body+'-'+action,actor.moving?(actor.walkPhase||0)/4:time);
  }
  const asset=boss?boss+'Boss':regional[name]||'commonCast',prefix=boss?'':name+'-';
  let action='idle',elapsed=time,duration;

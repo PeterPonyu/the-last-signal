@@ -42,6 +42,15 @@ export function campaignMilestones(areaIndex,difficulty='normal'){
  return difficulty==='hard'?area.hardMilestones:area.milestones;
 }
 
+export const NPC_COMBAT={
+ smith:{health:200,damage:22,range:240,interval:2.2,skill:'Forge spark'},
+ keeper:{health:180,damage:16,range:330,interval:2,skill:'Seed light'},
+ engineer:{health:190,damage:18,range:350,interval:2.1,skill:'Signal bolt'},
+ courier:{health:170,damage:15,range:390,interval:1.8,skill:'Guiding flare'},
+ archivist:{health:180,damage:19,range:370,interval:2.2,skill:'Memory shard'},
+ guard:{health:240,damage:26,range:200,interval:2,skill:'Shield light'}
+};
+
 export const UPGRADES=[
  {id:'radiance',name:'Radiance',family:'Sunshard',text:'Sunshard damage +28%.',max:3},
  {id:'volley',name:'Twin Dawn',family:'Sunshard',text:'A second aimed light shard at 55% power.',max:1},

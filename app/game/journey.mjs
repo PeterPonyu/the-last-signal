@@ -6,8 +6,8 @@ import {distance,clearPath} from './geometry.mjs';
 export function nearbyInteraction(run){
   const story=JOURNEY[run.areaIndex],obstacles=areaObstacles(run);
   const c=run.campaign;
-  const routes=c.routes.filter(r=>r.status!=='locked'&&r.status!=='active'&&!r.completed).map(r=>({...r,kind:'route'}));
-  const targets=[...routes,{...story.exit,kind:'gate'},...c.npcs.map(n=>({...n,kind:'npc'}))];
+  const routes=c.routes.filter(r=>['available','retry'].includes(r.status)&&!r.completed).map(r=>({...r,kind:'route'}));
+  const targets=[...routes,{...story.exit,kind:'gate'},...c.npcs.filter(n=>n.state!=='captured'&&n.state!=='active').map(n=>({...n,kind:'npc'}))];
   return targets.filter(point=>distance(run.player,point)<120&&clearPath(run.player,point,obstacles,8)).sort((a,b)=>distance(run.player,a)-distance(run.player,b))[0]||null;
 }
 export function gatewayPrompt(run){

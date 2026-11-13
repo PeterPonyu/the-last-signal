@@ -8,8 +8,8 @@ import {visibleAt} from './presentation.mjs';
 import {distance} from '../game/geometry.mjs';
 import {glow} from './world.mjs';
 
-function label(ctx,text,x,y,role='small'){
-  ctx.font=canvasFont(role);ctx.textAlign='center';ctx.lineWidth=4;ctx.strokeStyle='#171a18';ctx.fillStyle='#fff0c6';ctx.strokeText(text,x,y);ctx.fillText(text,x,y);
+function label(ctx,text,x,y,role='small',scale=1){
+  ctx.font=canvasFont(role,scale);ctx.textAlign='center';ctx.lineWidth=4;ctx.strokeStyle='#171a18';ctx.fillStyle='#fff0c6';ctx.strokeText(text,x,y);ctx.fillText(text,x,y);
 }
 export function landmarkMotion(kind,time,reduced=false){
   const t=reduced?0:time;
@@ -30,9 +30,18 @@ export function drawGuide(ctx,images,run,reduced,guidance=true,scale=1,npc=run.c
   const near=nearbyInteraction(run)?.id===npc.id;
   ctx.save();glow(ctx,npc.x,npc.y-24,72,near?'#e3c67844':'#d5dab41c');
   const route=run.campaign.routes.find(r=>r.npc===npc.id);
-  const working=route?.kind==='repair'&&route.status==='active'&&distance(run.player,route)<135;
-  drawCast(ctx,images,{...npc,npc:true,met:npc.met&&near,working},run.time,reduced);
-  if(near||npc.id===run.campaign.npcs[0].id)markerLabel(ctx,'guide',guidance&&near?'Speak to '+npc.name+' · F':npc.name,npc.x,npc.y-112,scale);
+  const working=route?.kind==='repair'&&route.status==='active'&&distance(run.player,route)<135&&!npc.evading;
+  drawCast(ctx,images,{...npc,npc:true,met:npc.met&&near,working},run.time,reduced,npc.state==='captured'?0.35:npc.hit>0?0.75:1);
+  if(npc.state==='active'){
+    const width=100*scale,y=npc.y-110;
+    ctx.fillStyle='#101b1ee8';ctx.fillRect(npc.x-width/2-2,y-2,width+4,11*scale);
+    ctx.fillStyle=npc.hp<npc.maxHp*0.3?'#ffad81':'#95e4d0';ctx.fillRect(npc.x-width/2,y,width*npc.hp/npc.maxHp,7*scale);
+    if(npc.shield>0){ctx.strokeStyle='#ffe9a3';ctx.lineWidth=2;ctx.strokeRect(npc.x-width/2-4,y-4,width+8,15*scale);}
+    label(ctx,'Protect '+npc.name+' · '+Math.ceil(npc.hp)+' / '+npc.maxHp,npc.x,y-8*scale,'small',scale);
+    if(npc.shield>0)label(ctx,'Shield '+Math.ceil(npc.shield),npc.x,npc.y+44,'small',scale);
+  }else if(npc.state==='captured')markerLabel(ctx,'guide',npc.name+' · Captured · Returning',npc.x,npc.y-112,scale);
+  else if(route?.status==='retry')markerLabel(ctx,'guide','Restart '+npc.name+'’s mission · F',npc.x,npc.y-112,scale);
+  else if(near||npc.id===run.campaign.npcs[0].id)markerLabel(ctx,'guide',guidance&&near?'Speak to '+npc.name+' · F':npc.name,npc.x,npc.y-112,scale);
   ctx.restore();
 }
 export function drawGateway(ctx,run,camera,reduced,guidance=true,scale=1,images){

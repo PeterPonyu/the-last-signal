@@ -24,13 +24,13 @@ function sceneryFor(area){
   return sceneryByArea.get(area);
 }
 
-export function drawBattlefield(ctx, canvas, images, run, reduced, previousCamera=null, elapsed=1/60, alpha=1, guidance=true) {
+export function drawBattlefield(ctx, canvas, images, run, reduced, previousCamera=null, elapsed=1/60, alpha=1, guidance=true, cameraTarget=null) {
   const area=AREAS[run.areaIndex], viewWidth=matchMedia('(max-width:750px)').matches?680:1200, viewHeight=680;
   if(canvas.width!==viewWidth)canvas.width=viewWidth;
   const uiScale=Math.max(1,viewWidth/(canvas.clientWidth||viewWidth));
   const player=renderPosition(run.player,alpha),companion=renderPosition(run.companion,alpha),sol=renderPosition(run.sol,alpha);
-  const camera=followCamera(previousCamera,player,viewWidth,viewHeight,elapsed,run.areaIndex,reduced);
-  const party=[player,companion,...(sol.active?[sol]:[])],labels=[];
+  const camera=followCamera(previousCamera,cameraTarget||player,viewWidth,viewHeight,elapsed,run.areaIndex,reduced);
+  const party=[player,companion,...(sol.active?[sol]:[]),...run.campaign.npcs.filter(n=>n.state==='active').map(n=>renderPosition(n,alpha))],labels=[];
   const drawActor=(e,pose,height,opacity=1)=>{
     const kind=e.hero?'hero':e.companion?'companion':e.sol?'sol':'enemy';
     drawActorEnergy(ctx,e,kind,run,reduced,false);
@@ -73,11 +73,11 @@ export function drawBattlefield(ctx, canvas, images, run, reduced, previousCamer
   for(const o of run.lanterns)if(visibleAt(o,camera))actors.push({...o,prop:true,lantern:true,type:7,height:100});
   for(const b of run.beacons)if(visibleAt(b,camera))actors.push({...b,prop:true,type:4,height:94});
   for(const e of run.enemies)if(e.hp>0&&visibleAt(e,camera,200)){const posed=renderPosition(e,alpha);if(visibleAt(posed,camera))actors.push(posed);}
-  for(const n of run.campaign.npcs)if(visibleAt(n,camera))actors.push({...n,npc:true});
+  for(const n of run.campaign.npcs)if(visibleAt(n,camera))actors.push({...renderPosition(n,alpha),npc:true});
   for(const e of [{...player,hero:true},{...companion,companion:true},...(sol.active?[{...sol,sol:true}]:[])])if(visibleAt(e,camera))actors.push(e);
   actors.sort((a,b)=>a.y-b.y);
   for(const e of actors){
-    drawShadow(ctx,e,e.prop?e.height:e.sol?54:e.boss?145:96,e.hp<=0?Math.max(0,1-e.deathAge/0.8):1);
+    drawShadow(ctx,e,e.prop?e.height:e.sol?54:e.boss?145:96,e.state==='captured'?0.3:e.hp<=0?Math.max(0,1-e.deathAge/0.8):1);
     if(e.npc){drawGuide(ctx,images,run,reduced,guidance,uiScale,e);continue;}
     if(e.prop){prop(e,propAlpha(e,party));
       if(e.lantern){

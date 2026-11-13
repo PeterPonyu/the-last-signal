@@ -1,13 +1,14 @@
-import {CAMPAIGN,campaignMilestones} from '../../content/campaign.mjs';
+import {CAMPAIGN,campaignMilestones,NPC_COMBAT} from '../../content/campaign.mjs';
 import {AREAS} from '../../content/game.mjs';
 import {distance,moveBody,navigationField,directionTo} from './geometry.mjs';
+import {moveAlly,resetAllyMotion} from './ally-ai.mjs';
 
 export function createCampaignArea(run){
  const def=CAMPAIGN[run.areaIndex],seed=(run.initialSeed+run.areaIndex*17)>>>0;
- const routes=def.routes.map((r,i)=>({...r,...r.sites[(seed+i)%r.sites.length],status:'locked',progress:0,completed:false}));
+ const routes=def.routes.map((r,i)=>({...r,...r.sites[(seed+i)%r.sites.length],status:'locked',progress:0,completed:false,failures:0}));
  const barriers=Array.from({length:4},(_,i)=>({x:1960,y:1080+i*75,radius:34,type:2,height:100,barrier:true}));
  const obstacles=[...AREAS[run.areaIndex].obstacles,...barriers];
- return {barriers,obstacles,npcNavigation:navigationField(obstacles,def.hub),eventNavigation:navigationField(obstacles,def.arena),changedAt:0,areaIndex:run.areaIndex,defeats:0,stage:0,milestones:[],choice:null,routes,event:{...def.hub,progress:0,complete:false},lieutenantSpawned:false,lieutenantDefeated:false,bossPhases:[],bossDistance:0,history:[],lastEncounter:null,encounterIndex:0,spawnRemaining:0,groupType:'pursuit',heavyClock:0,npcs:def.npcs.map((npc,i)=>({...npc,body:i?npc.body:npc.id,...(i?{x:routes[i-1].x,y:routes[i-1].y}:{}),homeX:i?routes[i-1].x:npc.x,homeY:i?routes[i-1].y:npc.y,met:false,walkPhase:0,moving:false})),notice:def.messages[0],noticeUntil:12};
+ return {barriers,obstacles,npcNavigation:navigationField(obstacles,def.hub),eventNavigation:navigationField(obstacles,def.arena),changedAt:0,areaIndex:run.areaIndex,defeats:0,stage:0,milestones:[],choice:null,routes,event:{...def.hub,progress:0,complete:false},lieutenantSpawned:false,lieutenantDefeated:false,bossPhases:[],bossDistance:0,history:[],lastEncounter:null,encounterIndex:0,spawnRemaining:0,groupType:'pursuit',heavyClock:0,npcs:def.npcs.map((npc,i)=>({...npc,body:i?npc.body:npc.id,...(i?{x:routes[i-1].x,y:routes[i-1].y,hp:NPC_COMBAT[npc.body].health,maxHp:NPC_COMBAT[npc.body].health,state:'waiting',invulnerable:0,hit:0,cast:0,fireClock:0.6,shield:0,shieldTime:0,respawnIn:0}:{}),homeX:i?routes[i-1].x:npc.x,homeY:i?routes[i-1].y:npc.y,faceX:1,met:false,walkPhase:0,moving:false})),notice:def.messages[0],noticeUntil:12};
 }
 export function campaignNotice(run,text){run.campaign.notice=text;run.campaign.noticeUntil=run.time+9;}
 export function creditDefeat(run,enemy){
@@ -22,15 +23,22 @@ export function creditDefeat(run,enemy){
 export function areaObstacles(run){return run.campaign?.areaIndex===run.areaIndex?run.campaign.obstacles:AREAS[run.areaIndex].obstacles;}
 export function chooseRoute(run,id){
  const c=run.campaign,r=c.routes.find(r=>r.id===id);
- if(!r||r.status==='locked'||r.completed||distance(run.player,r)>130)return false;
+ if(!r||!['available','retry'].includes(r.status)||r.completed||distance(run.player,r)>130)return false;
  if(!c.choice){c.choice=id;c.history.push({kind:'choice',id,time:run.time});run.routeChoices[run.areaIndex]=id;}
- r.status='active';const npc=c.npcs.find(n=>n.id===r.npc);npc.met=true;
- campaignNotice(run,r.kind==='repair'?'Stay inside the work circle while '+npc.name+' repairs the mechanism.':'Stay close to '+npc.name+' and escort them to the golden gathering point.');return true;
+ r.status='active';const npc=c.npcs.find(n=>n.id===r.npc);Object.assign(npc,{met:true,state:'active',hp:npc.maxHp,invulnerable:1.5,cast:0,fireClock:0.6,shield:0,shieldTime:0});resetAllyMotion(npc);
+ campaignNotice(run,'Protect '+npc.name+' while '+(r.kind==='repair'?'they repair the mechanism.':'you escort them to the gathering.')+' E shields nearby keepers; Dawnweaver can heal them. If captured, they return here and this mission restarts with F.');return true;
+}
+export function failRoute(run,npc){
+ const c=run.campaign,route=c.routes.find(r=>r.npc===npc.id);
+ if(!route||route.status!=='active'||route.completed)return false;
+ route.status='recovering';route.progress=0;route.failures++;npc.state='captured';npc.hp=0;npc.cast=0;npc.respawnIn=3;npc.shield=0;resetAllyMotion(npc);
+ run.stats.npcDefeats++;c.history.push({kind:'route-failed',id:route.id,time:run.time});run.events.push('npc-captured');
+ campaignNotice(run,npc.name+' was overcome by the Hollow. They will return to their starting point. Return and press F to try again.');return true;
 }
 function finishRoute(run,route){
  if(route.completed)return;
  route.completed=true;route.status='complete';route.progress=1;
- const c=run.campaign;c.history.push({kind:'route-complete',id:route.id,time:run.time});
+ const c=run.campaign,npc=c.npcs.find(n=>n.id===route.npc);npc.state='safe';npc.cast=0;resetAllyMotion(npc);c.history.push({kind:'route-complete',id:route.id,time:run.time});
  if(!run.rewards.includes(route.reward)){
   run.rewards.push(route.reward);
   if(route.reward==='forge')run.player.bladePower+=0.18;
@@ -46,19 +54,26 @@ export function updateProgression(run,dt){
  c.heavyClock=Math.max(0,c.heavyClock-dt);
  if(c.milestones.length>0)for(const r of c.routes)if(r.status==='locked')r.status='available';
  for(const route of c.routes){
-  const npc=c.npcs.find(n=>n.id===route.npc);npc.moving=false;
-  if(route.status==='active'){
+  const npc=c.npcs.find(n=>n.id===route.npc);if(!npc.evading)npc.moving=false;
+  if(route.status==='recovering'){
+   npc.respawnIn=Math.max(0,npc.respawnIn-dt);
+   if(npc.respawnIn===0){Object.assign(npc,{x:npc.homeX,y:npc.homeY,hp:npc.maxHp,state:'waiting',hit:0,invulnerable:0,cast:0,shield:0,shieldTime:0});resetAllyMotion(npc);route.status='retry';campaignNotice(run,npc.name+' is back at '+route.name+'. Press F there to restart. Your other progress is kept.');}
+  }
+  if(route.status==='active'&&npc.hp>0){
    if(route.kind==='repair'){
-    if(distance(p,route)<135)route.progress=Math.min(1,route.progress+dt/18);
+    if(!npc.evading&&npc.cast<=0){
+     if(distance(npc,route)>30)moveAlly(npc,route,c.obstacles,dt,{speed:95,start:30,stop:20});
+     if(distance(p,route)<135&&distance(npc,route)<100)route.progress=Math.min(1,route.progress+dt/18);
+    }
    }else{
     const d=distance(npc,def.hub);
-    if(distance(p,npc)<240&&d>30){const step=Math.min(75*dt,d);const dir=directionTo(npc,def.hub,c.obstacles,c.npcNavigation);moveBody(npc,dir.x*step,dir.y*step,c.obstacles,16);npc.walkPhase+=dt*7;npc.moving=true;}
+    if(distance(p,npc)<240&&d>30&&npc.cast<=0&&!npc.evading)moveAlly(npc,def.hub,c.obstacles,dt,{speed:95,start:32,stop:25});
     route.progress=Math.max(route.progress,1-Math.min(1,d/Math.max(1,distance({x:npc.homeX,y:npc.homeY},def.hub))));
     if(d<45)route.progress=1;
    }
    if(route.progress>=1)finishRoute(run,route);
   }
-  if(route.completed&&route.kind==='repair'&&distance(npc,def.hub)>50){const d=distance(npc,def.hub);if(distance(p,npc)<500){const dir=directionTo(npc,def.hub,c.obstacles,c.npcNavigation);moveBody(npc,dir.x*60*dt,dir.y*60*dt,c.obstacles,16);npc.walkPhase+=dt*5;npc.moving=true;}}
+  if(route.completed&&route.kind==='repair'&&distance(npc,def.hub)>50&&distance(p,npc)<500)moveAlly(npc,def.hub,c.obstacles,dt,{speed:60,start:50,stop:40});
  }
  const selected=c.routes.find(r=>r.id===c.choice),previous=c.stage;
  if(c.milestones.length)c.stage=Math.max(c.stage,1);
@@ -84,7 +99,7 @@ export function campaignTarget(run){
  const lieutenant=run.enemies.find(e=>e.lieutenant&&e.hp>0);if(lieutenant)return {...lieutenant,kind:'boss',label:'Counterattack keeper'};
  const route=c.routes.find(r=>r.id===c.choice);
  if(c.stage===1&&!route)return {...c.routes[0],kind:'route',label:'Choose a road · F'};
- if(route&&!route.completed){const npc=c.npcs.find(n=>n.id===route.npc);return {...(route.kind==='escort'&&route.status==='active'?npc:route),kind:'route',label:route.verb};}
+ if(route&&!route.completed){const npc=c.npcs.find(n=>n.id===route.npc);return {...(route.kind==='escort'&&route.status==='active'?npc:route),kind:'route',label:route.status==='retry'?'Restart '+npc.name+'’s mission · F':route.status==='recovering'?npc.name+' is returning':route.verb};}
  if(c.stage>=2&&!c.event.complete)return {...c.event,kind:'event',label:def.event.name};
  return {...(c.stage>=2?def.arena:c.stage===1?def.hub:AREAS[run.areaIndex].spawn),kind:'battle',label:'Free the Hollow'};
 }
@@ -93,7 +108,7 @@ export function campaignObjective(run){
  if(c.stage===0)return `Free the Hollow · ${c.defeats} / ${next} · Two roads will awaken`;
  if(!c.choice)return `Choose a road · ${def.routes.map(r=>r.name).join(' or ')} · F`;
  const route=c.routes.find(r=>r.id===c.choice);
- if(!route.completed)return `${route.verb} · ${Math.floor(route.progress*100)}% · ${c.defeats} freed`;
+ if(!route.completed){const npc=c.npcs.find(n=>n.id===route.npc);if(route.status==='recovering')return `${npc.name} was captured · Returning in ${Math.ceil(npc.respawnIn)}s`;if(route.status==='retry')return `Return to ${route.name} · Restart ${npc.name}’s mission · F`;return `${route.verb} · ${Math.floor(route.progress*100)}% · Protect ${npc.name}: ${Math.ceil(npc.hp)} / ${npc.maxHp}`;}
  if(c.stage>=2&&!c.event.complete)return `${def.event.name} · ${Math.floor(c.event.progress*100)}% · Stay nearby`;
  if(run.bossSpawned)return `Defeat ${AREAS[run.areaIndex].boss} · Read its next move`;
  if(c.stage>=3&&!c.lieutenantDefeated)return 'Break the counterattack keeper · '+c.defeats+' freed';

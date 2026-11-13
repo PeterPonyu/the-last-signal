@@ -24,7 +24,10 @@ export function guidanceStep(run){
   if(c.stage===0)return {symbol:'boss',title:'Free the Hollow',text:'Defeats fill the liberation bar. At the first milestone, two roads open. Story messages appear above the battlefield; conversations are optional.'};
   if(!c.choice)return {symbol:'guide',title:'Choose Road A or Road B',text:'The minimap marks two different encounters. Follow either road to its keeper and press F. You can still help the other keeper later for an extra benefit.'};
   const route=c.routes.find(r=>r.id===c.choice);
-  if(!route.completed)return {symbol:'guide',title:route.verb,text:route.kind==='repair'?'Remain in the work circle to help. Progress stays if danger forces you away.':'Stay close to the keeper as they walk toward the golden gathering point. They wait safely if you move away.'};
+  if(!route.completed){
+    if(route.status==='recovering'||route.status==='retry')return {symbol:'guide',title:'Recover your keeper',text:'The captured keeper returns to their starting road after three seconds. Go back and press F to restart that mission. Your other progress and gifts remain.'};
+    return {symbol:'shield',title:'Protect your keeper',text:(route.kind==='repair'?'Stay near the work circle.':'Stay close as the keeper walks to the gathering.')+' Keepers fight, dodge warnings, and can be defeated. E shields them nearby; Dawnweaver heals the most wounded ally. Attack raiders to draw their attention.'};
+  }
   if(!c.event.complete&&c.stage>=2)return {symbol:'scenery',title:'Help the gathering',text:'Stay inside the gold circle around the moving mechanism or orrery. Defeats continue to reveal the counterattack and its keeper.'};
   return {symbol:'boss',title:'Break the counterattack',text:'Free more Hollow and defeat the marked keeper. The mobile Warden arrives when the district’s final milestone is reached.'};
 }
