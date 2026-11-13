@@ -18,6 +18,11 @@ import {markerLabel,drawObjectivePointer,drawDanger,drawDangerOutline} from './g
 import {placeMinimap} from './minimap-layout.mjs';
 
 const minimapCorners=new WeakMap();
+const sceneryByArea=new WeakMap();
+function sceneryFor(area){
+  if(!sceneryByArea.has(area))sceneryByArea.set(area,[...area.obstacles,...area.decorations].map(o=>({...o,prop:true})));
+  return sceneryByArea.get(area);
+}
 
 export function drawBattlefield(ctx, canvas, images, run, reduced, previousCamera=null, elapsed=1/60, alpha=1, guidance=true) {
   const area=AREAS[run.areaIndex], viewWidth=matchMedia('(max-width:750px)').matches?680:1200, viewHeight=680;
@@ -63,7 +68,13 @@ export function drawBattlefield(ctx, canvas, images, run, reduced, previousCamer
   for(const h of run.hazards){drawHazardImpact(ctx,h,reduced);drawDanger(ctx,h,uiScale);}
   for(const item of run.pickups)prop({...item,type:5,height:56});
   for(const e of run.corpses){if(!visibleAt(e,camera))continue;const remains=corpseAppearance(e);drawShadow(ctx,e,e.boss?145:94,remains.opacity);if(!drawRig(ctx,e,run.time,reduced,remains.opacity))drawSprite(ctx,images,hollowPose(e),e.x,e.y,e.boss?145:e.runner?76:94,e.faceX,remains.opacity,remains.motion);drawDefeatEnergy(ctx,e,reduced);}
-  const actors=[...area.obstacles.map(o=>({...o,prop:true})),...area.decorations.map(o=>({...o,prop:true})),...run.lanterns.map(o=>({...o,prop:true,lantern:true,type:7,height:100})),...run.beacons.map(b=>({...b,prop:true,type:4,height:94})),...run.enemies.filter(e=>e.hp>0).map(e=>renderPosition(e,alpha)),...run.campaign.npcs.map(n=>({...n,npc:true})),{...player,hero:true},{...companion,companion:true},...(sol.active?[{...sol,sol:true}]:[])].filter(e=>visibleAt(e,camera)).sort((a,b)=>a.y-b.y);
+  const actors=sceneryFor(area).filter(e=>visibleAt(e,camera));
+  for(const o of run.lanterns)if(visibleAt(o,camera))actors.push({...o,prop:true,lantern:true,type:7,height:100});
+  for(const b of run.beacons)if(visibleAt(b,camera))actors.push({...b,prop:true,type:4,height:94});
+  for(const e of run.enemies)if(e.hp>0&&visibleAt(e,camera,200)){const posed=renderPosition(e,alpha);if(visibleAt(posed,camera))actors.push(posed);}
+  for(const n of run.campaign.npcs)if(visibleAt(n,camera))actors.push({...n,npc:true});
+  for(const e of [{...player,hero:true},{...companion,companion:true},...(sol.active?[{...sol,sol:true}]:[])])if(visibleAt(e,camera))actors.push(e);
+  actors.sort((a,b)=>a.y-b.y);
   for(const e of actors){
     drawShadow(ctx,e,e.prop?e.height:e.sol?54:e.boss?145:96,e.hp<=0?Math.max(0,1-e.deathAge/0.8):1);
     if(e.npc){drawGuide(ctx,images,run,reduced,guidance,uiScale,e);continue;}

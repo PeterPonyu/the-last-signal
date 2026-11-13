@@ -1,4 +1,4 @@
-import {CAMPAIGN} from '../../content/campaign.mjs';
+import {CAMPAIGN,campaignMilestones} from '../../content/campaign.mjs';
 import {AREAS} from '../../content/game.mjs';
 import {distance,moveBody,navigationField,directionTo} from './geometry.mjs';
 
@@ -14,7 +14,7 @@ export function creditDefeat(run,enemy){
  if(enemy.storyCredit===false)return;
  const c=run.campaign;c.defeats++;
  if(enemy.lieutenant)c.lieutenantDefeated=true;
- for(const [index,count] of CAMPAIGN[run.areaIndex].milestones.entries())if(c.defeats>=count&&!c.milestones.includes(count)){
+ for(const [index,count] of campaignMilestones(run.areaIndex,run.difficulty).entries())if(c.defeats>=count&&!c.milestones.includes(count)){
   c.milestones.push(count);c.history.push({kind:'milestone',count,time:run.time});run.events.push('milestone');
   campaignNotice(run,index===0?CAMPAIGN[run.areaIndex].messages[1]:count+' Hollow freed. Your next encounter is ready.');
  }
@@ -89,7 +89,7 @@ export function campaignTarget(run){
  return {...(c.stage>=2?def.arena:c.stage===1?def.hub:AREAS[run.areaIndex].spawn),kind:'battle',label:'Free the Hollow'};
 }
 export function campaignObjective(run){
- const c=run.campaign,def=CAMPAIGN[run.areaIndex],next=def.milestones.find(n=>n>c.defeats)||def.milestones.at(-1);
+ const c=run.campaign,def=CAMPAIGN[run.areaIndex],milestones=campaignMilestones(run.areaIndex,run.difficulty),next=milestones.find(n=>n>c.defeats)||milestones.at(-1);
  if(c.stage===0)return `Free the Hollow · ${c.defeats} / ${next} · Two roads will awaken`;
  if(!c.choice)return `Choose a road · ${def.routes.map(r=>r.name).join(' or ')} · F`;
  const route=c.routes.find(r=>r.id===c.choice);

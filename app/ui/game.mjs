@@ -1,4 +1,4 @@
-import {CAMPAIGN,upgradeChoices} from '../../content/campaign.mjs';
+import {CAMPAIGN,upgradeChoices,campaignMilestones} from '../../content/campaign.mjs';
 import {readGuidance,saveGuidance,guidanceEnabled,completeGuidedRun,guidanceStep,INTRO_RUNS} from './guidance.mjs';
 import {SYMBOLS,symbolSvg} from '../render/symbols.mjs';
 import { createRun, update, requestAbility, chooseUpgrade, advanceArea, interact } from '../game/simulation.mjs';
@@ -165,9 +165,9 @@ function render() {
   text('area-label','AREA '+area.chapter+' · '+area.name.toUpperCase());
   text('difficulty-label',DIFFICULTIES[run.difficulty].name+' · '+DIFFICULTIES[run.difficulty].label);
   text('objective',objectiveText(run));
-  const campaign=run.campaign,definition=CAMPAIGN[run.areaIndex],next=definition.milestones.find(n=>n>campaign.defeats)||definition.milestones.at(-1);
+  const campaign=run.campaign,milestones=campaignMilestones(run.areaIndex,run.difficulty),next=milestones.find(n=>n>campaign.defeats)||milestones.at(-1);
   text('campaign-stage',['Discovery','Two roads','The gathering','Counterattack','The Warden','Reclaimed'][campaign.stage]);
-  text('campaign-count',campaign.defeats+' / '+next+' freed');property('campaign-meter','max',definition.milestones.at(-1));property('campaign-meter','value',Math.min(campaign.defeats,definition.milestones.at(-1)));
+  text('campaign-count',campaign.defeats+' / '+next+' freed');property('campaign-meter','max',milestones.at(-1));property('campaign-meter','value',Math.min(campaign.defeats,milestones.at(-1)));
   text('story-line',run.time<campaign.noticeUntil?campaign.notice:'');
   if(campaign.stage>=3&&run.areaIndex<2&&prefetchedArea!==run.areaIndex+1){prefetchedArea=run.areaIndex+1;loadAreaAssets(images,prefetchedArea).catch(()=>{});}
 

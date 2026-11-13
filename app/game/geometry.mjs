@@ -7,6 +7,9 @@ export function segmentHitsCircle(ax, ay, bx, by, cx, cy, radius) {
 }
 
 export function segmentCircleTime(ax, ay, bx, by, cx, cy, radius) {
+  // Reject distant scenery before solving the quadratic. Keep the original
+  // intersection calculation for every possible hit, including tangencies.
+  if(cx<Math.min(ax,bx)-radius||cx>Math.max(ax,bx)+radius||cy<Math.min(ay,by)-radius||cy>Math.max(ay,by)+radius)return null;
   const dx = bx - ax, dy = by - ay, length = dx * dx + dy * dy;
   const ox=ax-cx,oy=ay-cy,c=ox*ox+oy*oy-radius*radius;
   if(c<=0)return 0;
@@ -27,7 +30,9 @@ export function moveBody(body, dx, dy, obstacles, radius = 18) {
     body.x = clamp(body.x + dx / steps, WORLD.left, WORLD.right);
     body.y = clamp(body.y + dy / steps, WORLD.top, WORLD.bottom);
     for (const o of obstacles) {
-      const x = body.x - o.x, y = body.y - o.y, d = Math.hypot(x, y), limit = radius + o.radius;
+      const x = body.x - o.x, y = body.y - o.y, limit = radius + o.radius;
+      if(Math.abs(x)>=limit||Math.abs(y)>=limit)continue;
+      const d = Math.hypot(x, y);
       if (d < limit) { body.x = o.x + (d ? x / d : 1) * limit; body.y = o.y + (d ? y / d : 0) * limit; }
     }
   }
@@ -38,20 +43,22 @@ const terrainCache = new WeakMap();
 const indexAt = p => clamp(Math.floor(p.y / CELL), 0, ROWS - 1) * COLS + clamp(Math.floor(p.x / CELL), 0, COLS - 1);
 const centerAt = index => ({ x: (index % COLS + 0.5) * CELL, y: (Math.floor(index / COLS) + 0.5) * CELL });
 export function navigationField(obstacles, target) {
-  const costs = Array(COLS * ROWS).fill(Infinity);
-  let blocked = terrainCache.get(obstacles);
-  if (!blocked) { blocked = costs.map((_, i) => {
+  let terrain = terrainCache.get(obstacles);
+  if (!terrain) { const blocked = Array.from({length:COLS*ROWS},(_, i) => {
     const p = centerAt(i);
     return p.x < WORLD.left || p.x > WORLD.right || p.y < WORLD.top || p.y > WORLD.bottom || obstacles.some(o => distance(p, o) < o.radius + 34);
-  }); terrainCache.set(obstacles, blocked); }
+  }); terrain={blocked,queue:new Int32Array(COLS*ROWS),start:-1,field:null};terrainCache.set(obstacles, terrain); }
+  const {blocked,queue}=terrain;
   let start = indexAt(target);
   if (blocked[start]) {
     let nearest = Infinity;
-    for (let i = 0; i < costs.length; i++) if (!blocked[i]) { const d = distance(centerAt(i), target); if (d < nearest) { start = i; nearest = d; } }
+    for (let i = 0; i < blocked.length; i++) if (!blocked[i]) { const d = distance(centerAt(i), target); if (d < nearest) { start = i; nearest = d; } }
   }
+  if(terrain.start===start)return terrain.field;
+  const costs = Array(COLS * ROWS).fill(Infinity);
   // Each cell enters the queue once. Keep the same E/W/S/N traversal without
   // creating four coordinate pairs for every visited cell.
-  const queue = new Int32Array(costs.length);let tail=1;
+  let tail=1;
   queue[0]=start;costs[start] = 0;
   for (let head = 0; head < tail; head++) {
     const i = queue[head], x = i % COLS;
@@ -62,13 +69,15 @@ export function navigationField(obstacles, target) {
       costs[j] = costs[i] + 1; queue[tail++]=j;
     }
   }
-  return costs;
+  terrain.start=start;terrain.field=costs;return costs;
 }
 
 export function directionTo(body, target, obstacles, field) {
   let point = target;const clearance=body.radius??18;
   let escapeX=0,escapeY=0;
   for(const obstacle of obstacles){
+    const limit=obstacle.radius+clearance+2;
+    if(Math.abs(body.x-obstacle.x)>limit||Math.abs(body.y-obstacle.y)>limit)continue;
     const d=distance(body,obstacle);
     if(d<=obstacle.radius+clearance+2){escapeX+=d?(body.x-obstacle.x)/d:1;escapeY+=d?(body.y-obstacle.y)/d:0;}
   }

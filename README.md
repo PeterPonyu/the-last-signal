@@ -4,7 +4,7 @@ An original golden fantasy browser adventure starring Zeyu, Dawnweaver and Sol.
 
 [Play the game](https://peterponyu.github.io/the-last-signal/)
 
-Free browser play, with no account or installation. Three connected maps offer defeat-driven story progression, two branching roads each, nine named keepers, twelve upgrade cards, eighteen enemy roles and three mobile Wardens. Normal targets a 15–20 minute successful journey. Hard offers denser encounters and shorter warning windows.
+Free browser play, with no account or installation. Three connected maps offer defeat-driven story progression, two branching roads each, nine named keepers, twelve upgrade cards, eighteen enemy roles and three mobile Wardens. Normal and Hard both target a 15–20 minute successful journey. Hard offers denser encounters, larger defeat objectives and shorter warning windows. The frame scheduler handles refresh jitter, and collision/navigation work is bounded without reducing visual detail.
 
 Move with WASD or arrows. J or click swings Sunblade; Q releases Sunbreak; E pulses; Space dashes; F speaks, chooses a road or enters a gateway. Ranged light fires automatically. P or Escape pauses. Touch controls are included, and instructions can be hidden.
 

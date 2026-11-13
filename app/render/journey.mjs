@@ -61,7 +61,7 @@ export function drawGuide(ctx,images,run,reduced,guidance=true,scale=1,npc=run.c
 }
 export function drawGateway(ctx,run,camera,reduced,guidance=true,scale=1){
   const gate=JOURNEY[run.areaIndex].exit;if(!visibleAt(gate,camera,230))return;
-  const open=run.gateOpen,t=reduced?0:run.time;
+  const open=run.gateOpen,showLabels=open||!run.bossSpawned,t=reduced?0:run.time;
   ctx.save();ctx.translate(gate.x,gate.y);glow(ctx,0,-40,150,open?'#ffcd6a66':'#8cb5ac22');
   ctx.strokeStyle=open?'#edce8e':'#7b8f88';ctx.fillStyle='#252f2beb';ctx.lineWidth=7;
   ctx.beginPath();ctx.moveTo(-72,20);ctx.lineTo(-72,-93);ctx.quadraticCurveTo(0,-187,72,-93);ctx.lineTo(72,20);ctx.stroke();
@@ -71,10 +71,12 @@ export function drawGateway(ctx,run,camera,reduced,guidance=true,scale=1){
     ctx.fillStyle='#e4bc6024';ctx.beginPath();ctx.ellipse(0,-45,59,86,0,0,Math.PI*2);ctx.fill();
     for(let i=0;i<12;i++){const y=15-((t*23+i*13)%150);ctx.globalAlpha=0.25+0.5*Math.sin((15-y)/150*Math.PI);ctx.fillStyle='#ffe3a1';ctx.fillRect(Math.sin(i*8.3)*48,y,3,5);}ctx.globalAlpha=1;
     ctx.strokeStyle='#ffe8af';ctx.lineWidth=3;ctx.beginPath();ctx.moveTo(-17,-38);ctx.lineTo(17,-38);ctx.lineTo(5,-50);ctx.moveTo(17,-38);ctx.lineTo(5,-26);ctx.stroke();
-  }else{ctx.strokeStyle='#83b4aa';ctx.lineWidth=3;for(let i=-1;i<=1;i++){ctx.beginPath();ctx.moveTo(-58,-80+i*28);ctx.lineTo(58,-80+i*28);ctx.stroke();}label(ctx,'Sealed',0,-26,'small');}
-  label(ctx,gate.name,0,-172,'label');
-  markerLabel(ctx,'gate',gatewayPrompt(run),0,62,scale);
-  if(guidance&&!open)label(ctx,'Resolve the gathering, then defeat the Warden',0,106,'small');
+  }else{ctx.strokeStyle='#83b4aa';ctx.lineWidth=3;for(let i=-1;i<=1;i++){ctx.beginPath();ctx.moveTo(-58,-80+i*28);ctx.lineTo(58,-80+i*28);ctx.stroke();}if(showLabels)label(ctx,'Sealed',0,-26,'small');}
+  if(showLabels){
+    label(ctx,gate.name,0,-172,'label');
+    markerLabel(ctx,'gate',gatewayPrompt(run),0,62,scale);
+    if(guidance&&!open)label(ctx,'Resolve the gathering, then defeat the Warden',0,106,'small');
+  }
   ctx.restore();
 }
 export function drawRoleAdornment(ctx,e,time,reduced){

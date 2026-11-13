@@ -1,4 +1,4 @@
-import {CAMPAIGN} from '../../content/campaign.mjs';
+import {CAMPAIGN,campaignMilestones} from '../../content/campaign.mjs';
 import {JOURNEY} from '../../content/journey.mjs';
 import {AREAS} from '../../content/game.mjs';
 import {distance,clamp} from '../game/geometry.mjs';
@@ -8,9 +8,12 @@ import {drawSymbol} from './symbols.mjs';
 import {canvasFont} from './typography.mjs';
 import {glow} from './world.mjs';
 
+const roadsByCampaign=new WeakMap();
 export function campaignRoads(run){
+ if(roadsByCampaign.has(run.campaign))return roadsByCampaign.get(run.campaign);
  const def=CAMPAIGN[run.areaIndex],routes=run.campaign.routes,fork={x:1100,y:1280},exit=JOURNEY[run.areaIndex].exit;
- return [[AREAS[run.areaIndex].spawn,fork],[fork,routes[0],def.hub],[fork,routes[1],def.hub],[routes[0],{x:2300,y:530},def.arena],[routes[1],{x:2540,y:1960},def.arena],[def.hub,def.arena,exit]];
+ const roads=[[AREAS[run.areaIndex].spawn,fork],[fork,routes[0],def.hub],[fork,routes[1],def.hub],[routes[0],{x:2300,y:530},def.arena],[routes[1],{x:2540,y:1960},def.arena],[def.hub,def.arena,exit]];
+ roadsByCampaign.set(run.campaign,roads);return roads;
 }
 export function drawCampaignTerrain(ctx,run,camera,reduced){
  const c=run.campaign,def=CAMPAIGN[run.areaIndex],t=reduced?0:run.time;
@@ -51,7 +54,7 @@ export function drawCampaignObjectives(ctx,run,camera,reduced,scale){
   ctx.save();ctx.strokeStyle=r.completed?'#f4d492':active?r.color:'#8a8e7b66';ctx.lineWidth=3;ctx.setLineDash(active?[]:[8,10]);ctx.beginPath();ctx.ellipse(r.x,r.y+24,133,93,0,0,Math.PI*2);ctx.stroke();ctx.setLineDash([]);
   if(r.progress>0){ctx.lineWidth=7;ctx.beginPath();ctx.arc(r.x,r.y,115,-Math.PI/2,-Math.PI/2+r.progress*Math.PI*2);ctx.stroke();}
   drawSymbol(ctx,r.completed?'gate':'guide',r.x-75,r.y+42,25);
-  if(near||!c.choice)markerLabel(ctx,'guide',r.completed?'Road '+(index?'B':'A')+' · Restored':active?(r.status==='active'?r.verb+' · '+Math.floor(r.progress*100)+'%':'Road '+(index?'B':'A')+' · '+(r.kind==='repair'?'Repair':'Rescue')+' · F'):'Free '+def.milestones[0]+' Hollow to open this road',r.x,r.y+150,scale);
+  if(near||!c.choice)markerLabel(ctx,'guide',r.completed?'Road '+(index?'B':'A')+' · Restored':active?(r.status==='active'?r.verb+' · '+Math.floor(r.progress*100)+'%':'Road '+(index?'B':'A')+' · '+(r.kind==='repair'?'Repair':'Rescue')+' · F'):'Free '+campaignMilestones(run.areaIndex,run.difficulty)[0]+' Hollow to open this road',r.x,r.y+150,scale);
   ctx.restore();
  }
  if(c.stage<2)return;
