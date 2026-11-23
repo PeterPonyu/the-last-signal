@@ -143,7 +143,7 @@ dialog{padding:30px 22px}
 @media(max-width:750px){canvas{aspect-ratio:1;min-height:0}
 }
 
-.scene-wash{background-image:linear-gradient(90deg,#141310 8%,#141310dd 44%,#14131055 76%),linear-gradient(0deg,#141310 0%,transparent 40%),url('assets/battlefield-garden.png')}
+.scene-wash{background-image:linear-gradient(90deg,#141310 8%,#141310dd 44%,#14131055 76%),linear-gradient(0deg,#141310 0%,transparent 40%)}
 .difficulty-options{border:0;padding:0;margin:22px 0}
 .difficulty-options legend{color:var(--gold);margin-bottom:10px}
 .difficulty-options label{display:flex;gap:12px;padding:14px;margin:7px 0;border:1px solid var(--line);cursor:pointer;background:#ffffff03}
