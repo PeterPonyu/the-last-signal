@@ -24,10 +24,23 @@ function sceneryFor(area){
   return sceneryByArea.get(area);
 }
 
-export function drawBattlefield(ctx, canvas, images, run, reduced, previousCamera=null, elapsed=1/60, alpha=1, guidance=true, cameraTarget=null) {
-  const area=AREAS[run.areaIndex], viewWidth=matchMedia('(max-width:750px)').matches?680:1200, viewHeight=680;
-  if(canvas.width!==viewWidth)canvas.width=viewWidth;
-  const uiScale=Math.max(1,viewWidth/(canvas.clientWidth||viewWidth));
+// view (optional): {width,height} in world units shown on screen, scale = backing pixels per
+// world unit, cssWidth = displayed width in CSS pixels. Without it the legacy fixed view is used.
+export function drawBattlefield(ctx, canvas, images, run, reduced, previousCamera=null, elapsed=1/60, alpha=1, guidance=true, cameraTarget=null, view=null) {
+  const area=AREAS[run.areaIndex];
+  let viewWidth,viewHeight,uiScale;
+  if(view){
+    viewWidth=view.width;viewHeight=view.height;
+    const pixelWidth=Math.max(1,Math.round(viewWidth*view.scale)),pixelHeight=Math.max(1,Math.round(viewHeight*view.scale));
+    if(canvas.width!==pixelWidth)canvas.width=pixelWidth;
+    if(canvas.height!==pixelHeight)canvas.height=pixelHeight;
+    ctx.setTransform(pixelWidth/viewWidth,0,0,pixelHeight/viewHeight,0,0);
+    uiScale=Math.max(1,viewWidth/(view.cssWidth||viewWidth));
+  }else{
+    viewWidth=matchMedia('(max-width:750px)').matches?680:1200;viewHeight=680;
+    if(canvas.width!==viewWidth)canvas.width=viewWidth;
+    uiScale=Math.max(1,viewWidth/(canvas.clientWidth||viewWidth));
+  }
   const player=renderPosition(run.player,alpha),companion=renderPosition(run.companion,alpha),sol=renderPosition(run.sol,alpha);
   const camera=followCamera(previousCamera,cameraTarget||player,viewWidth,viewHeight,elapsed,run.areaIndex,reduced);
   const party=[player,companion,...(sol.active?[sol]:[]),...run.campaign.npcs.filter(n=>n.state==='active').map(n=>renderPosition(n,alpha))],labels=[];
@@ -112,7 +125,7 @@ export function drawBattlefield(ctx, canvas, images, run, reduced, previousCamer
   if(guidance)drawObjectivePointer(ctx,run,camera,viewWidth,viewHeight,uiScale);
   const previous=minimapCorners.get(canvas);
   const corner=previous?.areaIndex===run.areaIndex&&previous?.width===viewWidth?previous.corner:null;
-  const minimap=placeMinimap(run,camera,viewWidth,viewHeight,uiScale,corner);
+  const minimap=placeMinimap(run,camera,viewWidth,viewHeight,uiScale,corner,view?.reserved||[],{top:view?.minimapTop,size:view?.minimapSize});
   if(!minimap)return camera;
   minimapCorners.set(canvas,{areaIndex:run.areaIndex,width:viewWidth,corner:minimap.corner});
   const {x:mx,y:my,width:mw,height:mh}=minimap;

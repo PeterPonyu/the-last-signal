@@ -22,7 +22,7 @@ export function createAudio(onStatus,host=globalThis) {
     if(music&&!node){
       loading ||= context.audioWorklet.addModule(new URL('./music-worklet.mjs',import.meta.url)).then(()=>{
         node=new host.AudioWorkletNode(context,'dawn-score',{numberOfOutputs:1,outputChannelCount:[2]});node.connect(context.destination);
-        node.port.onmessage=({data})=>{if(data.kind==='bar'&&music&&running)onStatus('Music on · '+['Garden','Causeway','Court'][data.area]);};
+        node.port.onmessage=({data})=>{if(data.kind==='bar'&&music&&running)onStatus('Music on');};
       });
       await loading;
     }

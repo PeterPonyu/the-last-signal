@@ -1,13 +1,15 @@
 import {WORLD} from '../../content/game.mjs';
 
 // The map may yield its corner to combat. Keep a safe corner until it is occupied.
-export function placeMinimap(run,camera,width,height,uiScale=1,previousCorner=null){
-  const mw=Math.min(170*uiScale,width*0.28),mh=Math.round(mw*WORLD.height/WORLD.width);
+// reserved: screen rectangles {left,top,right,bottom} covered by page overlays (touch controls, cards).
+// options.top: first free row below page overlays; options.size: scale for small play areas.
+export function placeMinimap(run,camera,width,height,uiScale=1,previousCorner=null,reserved=[],options={}){
+  const size=options.size??1,mw=Math.min(170*uiScale,width*0.28)*size,mh=Math.round(mw*WORLD.height/WORLD.width);
   const candidates=[
     {corner:'bottom-right',x:width-mw-15,y:height-mh-20},
     {corner:'bottom-left',x:15,y:height-mh-20},
-    {corner:'top-left',x:15,y:Math.min(90*uiScale,height-mh-20)},
-    {corner:'top-right',x:width-mw-15,y:Math.min(90*uiScale,height-mh-20)},
+    {corner:'top-left',x:15,y:Math.min(options.top??90*uiScale,height-mh-20)},
+    {corner:'top-right',x:width-mw-15,y:Math.min(options.top??90*uiScale,height-mh-20)},
   ];
   const bounds=[];
   const box=(x,y,left,top,right,bottom)=>bounds.push({left:x-camera.x-left,top:y-camera.y-top,right:x-camera.x+right,bottom:y-camera.y+bottom});
@@ -22,7 +24,9 @@ export function placeMinimap(run,camera,width,height,uiScale=1,previousCorner=nu
   }
   for(const hazard of run.hazards){const r=hazard.radius+24;box(hazard.x,hazard.y,r,r,r,r);}
   for(const shot of run.shots){if(shot.hostile)box(shot.x,shot.y,16,16,16,16);}
+  const covered=candidate=>reserved.some(r=>candidate.x-6<r.right&&candidate.x+mw+6>r.left&&candidate.y-6<r.bottom&&candidate.y+mh+6>r.top);
   const clear=candidate=>{
+    if(covered(candidate))return false;
     const pad=candidate.corner===previousCorner?10:24;
     return !bounds.some(b=>candidate.x-pad<b.right&&candidate.x+mw+pad>b.left&&candidate.y-pad<b.bottom&&candidate.y+mh+pad>b.top);
   };
