@@ -177,7 +177,7 @@ dialog{padding:30px 22px}
 
 
 .party-status{position:absolute;left:25px;top:77px;color:#ffedbb;text-shadow:0 1px 3px #111;pointer-events:none}
-.abilities{grid-template-columns:repeat(4,minmax(0,1fr))}
+.abilities{grid-template-columns:repeat(5,minmax(0,1fr))}
 .abilities button{min-width:0}
 @media(max-width:750px){.abilities{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));width:100%}
 .abilities button{width:100%;min-height:48px}

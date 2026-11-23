@@ -26,7 +26,7 @@ export async function loadAssets(onProgress=()=>{},fetcher=fetch,ImageType=Image
 }
 export function loadAreaAssets(images,index,fetcher=fetch,ImageType=Image){
  if(!AREAS[index])return Promise.reject(new RangeError('Unknown map'));
- const keys=[AREAS[index].id,['gardenCast','causewayCast','courtCast'][index],['rootBoss','bellBoss','crownBoss'][index],...(index>0?['solActions']:[])];
+ const area=AREAS[index],keys=[area.id,area.regionalAsset,area.bossAsset,...(index>0?['solActions']:[])];
  if(keys.every(key=>images[key]))return Promise.resolve(images);
  return loadAssets(()=>{},fetcher,ImageType,keys,images);
 }

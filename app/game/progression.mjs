@@ -8,7 +8,7 @@ export function createCampaignArea(run){
  const routes=def.routes.map((r,i)=>({...r,...r.sites[(seed+i)%r.sites.length],status:'locked',progress:0,completed:false,failures:0}));
  const barriers=Array.from({length:4},(_,i)=>({x:1960,y:1080+i*75,radius:34,type:2,height:100,barrier:true}));
  const obstacles=[...AREAS[run.areaIndex].obstacles,...barriers];
- return {barriers,obstacles,npcNavigation:navigationField(obstacles,def.hub),eventNavigation:navigationField(obstacles,def.arena),changedAt:0,areaIndex:run.areaIndex,defeats:0,stage:0,milestones:[],choice:null,routes,event:{...def.hub,progress:0,complete:false},lieutenantSpawned:false,lieutenantDefeated:false,bossPhases:[],bossDistance:0,history:[],lastEncounter:null,encounterIndex:0,spawnRemaining:0,groupType:'pursuit',heavyClock:0,npcs:def.npcs.map((npc,i)=>({...npc,body:i?npc.body:npc.id,...(i?{x:routes[i-1].x,y:routes[i-1].y,hp:NPC_COMBAT[npc.body].health,maxHp:NPC_COMBAT[npc.body].health,state:'waiting',invulnerable:0,hit:0,cast:0,fireClock:0.6,shield:0,shieldTime:0,respawnIn:0}:{}),homeX:i?routes[i-1].x:npc.x,homeY:i?routes[i-1].y:npc.y,faceX:1,met:false,walkPhase:0,moving:false})),notice:def.messages[0],noticeUntil:12};
+ return {barriers,obstacles,npcNavigation:navigationField(obstacles,def.hub),eventNavigation:navigationField(obstacles,def.arena),changedAt:0,areaIndex:run.areaIndex,defeats:0,stage:0,milestones:[],choice:null,routes,event:{...def.hub,progress:0,complete:false},championSpawned:false,championDefeated:false,bossEncounters:[],lieutenantSpawned:false,lieutenantDefeated:false,bossPhases:[],bossDistance:0,history:[],lastEncounter:null,encounterIndex:0,spawnRemaining:0,groupType:'pursuit',heavyClock:0,npcs:def.npcs.map((npc,i)=>({...npc,body:i?npc.body:npc.id,...(i?{x:routes[i-1].x,y:routes[i-1].y,hp:NPC_COMBAT[npc.body].health,maxHp:NPC_COMBAT[npc.body].health,state:'waiting',invulnerable:0,hit:0,cast:0,fireClock:0.6,shield:0,shieldTime:0,respawnIn:0}:{}),homeX:i?routes[i-1].x:npc.x,homeY:i?routes[i-1].y:npc.y,faceX:1,met:false,walkPhase:0,moving:false})),notice:def.messages[0],noticeUntil:12};
 }
 export function campaignNotice(run,text){run.campaign.notice=text;run.campaign.noticeUntil=run.time+9;}
 export function creditDefeat(run,enemy){
@@ -96,7 +96,7 @@ export function updateProgression(run,dt){
 export function campaignTarget(run){
  const c=run.campaign,def=CAMPAIGN[run.areaIndex];
  if(run.gateOpen)return null;
- const boss=run.enemies.find(e=>e.boss&&e.hp>0);if(boss)return {...boss,kind:'boss',label:AREAS[run.areaIndex].boss};
+ const boss=run.enemies.find(e=>e.boss&&e.hp>0);if(boss)return {...boss,kind:'boss',label:boss.bossName||AREAS[run.areaIndex].boss};
  const lieutenant=run.enemies.find(e=>e.lieutenant&&e.hp>0);if(lieutenant)return {...lieutenant,kind:'boss',label:'Counterattack keeper'};
  const route=c.routes.find(r=>r.id===c.choice);
  if(c.stage===1&&!route)return {...c.routes[0],kind:'route',label:'Choose a road · F'};
@@ -110,6 +110,7 @@ export function campaignObjective(run){
  if(!c.choice)return `Choose a road · ${def.routes.map(r=>r.name).join(' or ')} · F`;
  const route=c.routes.find(r=>r.id===c.choice);
  if(!route.completed){const npc=c.npcs.find(n=>n.id===route.npc);if(route.status==='recovering')return `${npc.name} was captured · Returning in ${Math.ceil(npc.respawnIn)}s`;if(route.status==='retry')return `Return to ${route.name} · Restart ${npc.name}’s mission · F`;return `${route.verb} · ${Math.floor(route.progress*100)}% · Protect ${npc.name}: ${Math.ceil(npc.hp)} / ${npc.maxHp}`;}
+ const activeBoss=run.enemies.find(e=>e.boss&&e.hp>0);if(activeBoss)return `Defeat ${activeBoss.bossName||AREAS[run.areaIndex].boss} · ${activeBoss.bossRank==='champion'?'Roaming champion':'Final Warden'}`;
  if(c.stage>=2&&!c.event.complete)return `${def.event.name} · ${Math.floor(c.event.progress*100)}% · Stay nearby`;
  if(run.bossSpawned)return `Defeat ${AREAS[run.areaIndex].boss} · Read its next move`;
  if(c.stage>=3&&!c.lieutenantDefeated)return 'Break the counterattack keeper · '+c.defeats+' freed';

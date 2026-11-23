@@ -12,8 +12,8 @@ export function nearbyInteraction(run){
 }
 export function gatewayPrompt(run){
   if(!run.gateOpen)return 'Gateway · Sealed';
-  if(nearbyInteraction(run)?.kind!=='gate')return run.areaIndex===2?'Approach the Sun Engine':'Approach gateway';
-  return run.areaIndex===2?'Release the dawn · F':'Enter gateway · F';
+  if(nearbyInteraction(run)?.kind!=='gate')return run.areaIndex===AREAS.length-1?'Approach the shared dawn':'Approach gateway';
+  return run.areaIndex===AREAS.length-1?'Release the dawn · F':'Enter gateway · F';
 }
 export function journeyTarget(run){
   const story=JOURNEY[run.areaIndex],p=run.player;

@@ -29,7 +29,7 @@ export function drawWorld(ctx,images,area,run,camera,reduced){
   }
   ctx.lineJoin='round';ctx.lineCap='round';
   ctx.lineWidth=5;ctx.strokeStyle='#c2a66e55';ctx.strokeRect(WORLD.left-20,WORLD.top-20,WORLD.right-WORLD.left+40,WORLD.bottom-WORLD.top+40);
-  ctx.fillStyle=run.areaIndex===0?'#101b1726':'#100e1820';ctx.fillRect(0,0,WORLD.width,WORLD.height);
+  ctx.fillStyle=['#101b1726','#100e1820','#100e1820','#3518112b','#0c153726'][run.areaIndex];ctx.fillRect(0,0,WORLD.width,WORLD.height);
   for(const b of run.beacons)if(b.charge>0){ctx.save();ctx.globalAlpha=b.charge;glow(ctx,b.x,b.y,230,'#ffcd6532');ctx.restore();}
   const party=[run.player,run.companion,...(run.sol.active?[run.sol]:[])];
   const waves=run.effects.filter(f=>['pulse','lantern','restore'].includes(f.kind));
@@ -38,15 +38,16 @@ export function drawWorld(ctx,images,area,run,camera,reduced){
     const warm=restorationAt(patch,run.beacons),near=party.find(a=>distance(a,patch)<45);
     const wave=waves.find(f=>Math.abs(distance(f,patch)-f.age/f.life*(f.kind==='restore'?230:210))<24);
     const bend=(reduced?0:Math.sin(run.time*1.7+patch.phase)*2)+(near?(patch.x-near.x)*0.18:0)+(wave?(patch.x-wave.x)*0.035:0);
-    drawWorldDetail(ctx,images,12+run.areaIndex,patch.x+bend,patch.y+22,patch.size*2.5,warm>0.35?0.9:0.6,bend*0.01);
+    drawWorldDetail(ctx,images,12+area.detailTheme,patch.x+bend,patch.y+22,patch.size*2.5,warm>0.35?0.9:0.6,bend*0.01);
   }
 }
 export function drawAmbient(ctx,run,camera,reduced){
   if(reduced)return;
-  for(let i=0;i<24;i++){
+  const count=run.areaIndex>=3?32:24;
+  for(let i=0;i<count;i++){
     const x=(i*173+run.time*(3+i%3))%WORLD.width,y=(i*97-run.time*4+WORLD.height*100)%WORLD.height;
     if(!visibleAt({x,y},camera,5))continue;
-    ctx.globalAlpha=0.12+0.16*(0.5+0.5*Math.sin(run.time+i));ctx.fillStyle=run.areaIndex===0?'#ffeab3':'#deb99a';ctx.fillRect(x,y,2,2);
+    ctx.globalAlpha=0.12+0.16*(0.5+0.5*Math.sin(run.time+i));ctx.fillStyle=['#ffeab3','#deb99a','#e8c2ef','#ffc77d','#cae4ff'][run.areaIndex];ctx.fillRect(x,y,run.areaIndex>=3?3:2,run.areaIndex===3?5:2);
   }
   ctx.globalAlpha=1;
 }

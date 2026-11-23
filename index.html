@@ -3,7 +3,7 @@
 <head>
   <meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
   <meta name="theme-color" content="#141310">
-  <meta name="description" content="Become a golden hero. Break the Hollow's hold on a world that has forgotten how to choose. An original Zeyu Fu action-adventure with three battlefields.">
+  <meta name="description" content="Become a golden hero. Break the Hollow's hold on a world that has forgotten how to choose. An original Zeyu Fu action-adventure with five battlefields.">
   <title>The Last Signal · Zeyu's Golden Rebellion</title>
   <link rel="icon" type="image/svg+xml" href="icon.svg">
   <link rel="stylesheet" href="style.css">
@@ -15,7 +15,7 @@
     <section id="landing" aria-labelledby="title">
       <div class="scene-wash"></div><div class="solar-ring" aria-hidden="true"></div>
       <img class="hero-art" src="assets/zeyu-golden.png" alt="Illustrated Zeyu in golden armor, holding a radiant sword and a solar glyph">
-      <div class="intro-copy"><p class="eyebrow">AN ORIGINAL ADVENTURE STARRING ZEYU FU</p><h1 id="title">Let the world<br>hear your <em>answer.</em></h1><p class="lead">The sun has fallen silent. The Hollow walk its streets.<br> You carry the last light—and a destination of your own.</p><div class="start-row"><button id="start" class="primary" disabled>Preparing the light…</button><span class="short-note">Three areas. One shared road.<br>Play with keyboard or touch.</span></div><p class="hero-quote">“Then I will make a road.” <span>— ZEYU</span></p></div>
+      <div class="intro-copy"><p class="eyebrow">AN ORIGINAL ADVENTURE STARRING ZEYU FU</p><h1 id="title">Let the world<br>hear your <em>answer.</em></h1><p class="lead">The sun has fallen silent. The Hollow walk its streets.<br> You carry the last light—and a destination of your own.</p><div class="start-row"><button id="start" class="primary" disabled>Preparing the light…</button><span class="short-note">Five areas. Ten bosses. One shared road.<br>Play with keyboard or touch.</span></div><p class="hero-quote">“Then I will make a road.” <span>— ZEYU</span></p></div>
       <div class="landing-footer"><span><b>I — III</b> THE FIRST ROAD</span><span>GOLDEN POWERS <i>✦</i> A WORLD TO RECLAIM</span><button id="controls-button">How to play ↗</button></div>
     </section>
     <section id="game" hidden aria-label="The First Road combat adventure">
@@ -29,14 +29,14 @@
       <aside id="field-guide" class="field-guide" aria-label="Field instructions" hidden><p class="eyebrow" id="guidance-session">First journeys</p><div id="guidance-symbol" class="guide-illustration" aria-hidden="true"></div><h3 id="guidance-title"></h3><p id="guidance-copy"></p><div class="guide-basics"><span>Move <kbd>WASD</kbd> or arrows</span><span>Ranged attacks fire automatically</span><span>Touch: use the movement pad below</span></div><button id="guide-legend-button" class="outline">Illustrated symbols</button><button id="hide-guidance" class="text-button">Hide instructions</button></aside></div>
       <div id="banner" class="battle-banner" role="status" aria-atomic="true"></div>
       <div class="journey-tools"><button id="interact-button" class="outline">Speak · F</button><button id="journal-button" class="outline">Journal</button><button id="symbols-button" class="outline">Symbols &amp; controls</button><button id="guidance-button" class="outline" aria-pressed="true">Hide instructions</button></div>
-      <div class="combat-bar"><div class="movement-note"><span>MOVE</span><kbd>W A S D</kbd><small id="companion-status">Dawnweaver · At your side</small></div><div class="abilities"><button id="sunbreak-button"><span class="ability-symbol">☀</span><span>Sunbreak<small id="sunbreak-cooldown">Ready · Q</small></span></button><button id="slash-button"><span class="ability-symbol">⚔</span><span>Sunblade<small id="slash-cooldown">Ready · J / click</small></span></button><button id="dash-button"><span class="ability-symbol">↠</span><span>Resolute Step<small id="dash-cooldown">Ready · Space</small></span></button><button id="pulse-button"><span class="ability-symbol">✺</span><span>Dawn Pulse<small id="pulse-cooldown">Ready · E</small></span></button></div></div>
+      <div class="combat-bar"><div class="movement-note"><span>MOVE</span><kbd>W A S D</kbd><small id="companion-status">Dawnweaver · At your side</small></div><div class="abilities"><button id="lance-button"><span class="ability-symbol">↗</span><span>Solar Lance<small id="lance-cooldown">Ready · R</small></span></button><button id="sunbreak-button"><span class="ability-symbol">☀</span><span>Sunbreak<small id="sunbreak-cooldown">Ready · Q</small></span></button><button id="slash-button"><span class="ability-symbol">⚔</span><span>Sunblade<small id="slash-cooldown">Ready · J / click</small></span></button><button id="dash-button"><span class="ability-symbol">↠</span><span>Resolute Step<small id="dash-cooldown">Ready · Space</small></span></button><button id="pulse-button"><span class="ability-symbol">✺</span><span>Dawn Pulse<small id="pulse-cooldown">Ready · E</small></span></button></div></div>
       <div class="touch-controls" aria-label="Touch controls"><div class="dpad"><button data-direction="up" aria-label="Move up">↑</button><button data-direction="left" aria-label="Move left">←</button><button data-direction="down" aria-label="Move down">↓</button><button data-direction="right" aria-label="Move right">→</button></div><p>Hold an arrow to move.<br>Use the power buttons above.</p></div>
     </section>
     <p id="audio-status" class="status-line">Music off</p>
     <p id="status" class="status-line" role="status">Loading original character and environment art…</p>
   </main>
   <dialog id="modal" aria-labelledby="modal-title"><button id="close-modal" class="close" aria-label="Close dialog">×</button><p id="modal-kicker" class="eyebrow"></p><h2 id="modal-title"></h2><div id="modal-body"></div><div id="modal-actions" class="modal-actions"></div></dialog>
-  <footer class="site-footer"><span>THE LAST SIGNAL <span class="dim">/</span> ZEYU'S GOLDEN REBELLION</span><span>Original fiction · Three-area adventure</span></footer>
+  <footer class="site-footer"><span>THE LAST SIGNAL <span class="dim">/</span> ZEYU'S GOLDEN REBELLION</span><span>Original fiction · Five-area adventure</span></footer>
   <script type="module" src="app/ui/game.mjs"></script>
 </body>
 </html>

@@ -98,7 +98,7 @@ export function drawBattlefield(ctx, canvas, images, run, reduced, previousCamer
       if((e.guarded||e.type==='sentinel')&&e.guardBroken<=0)drawSymbol(ctx,'shield',e.x+27,e.y-40,23);
 
       if(e.type==='cantor')drawSymbol(ctx,'bell',e.x,e.y-102,25);
-      if(e.boss)drawSymbol(ctx,'boss',e.x,e.y-224,28);
+      if(e.boss)drawSymbol(ctx,'boss',e.x,e.y-(e.bossRank==='champion'?168:224),28);
       if(e.hp<e.maxHp&&!e.boss){ctx.fillStyle='#100e0e';ctx.fillRect(e.x-17,e.y-(e.lieutenant?120:100),34,4);ctx.fillStyle='#a9dfcd';ctx.fillRect(e.x-17,e.y-(e.lieutenant?120:100),34*e.hp/e.maxHp,4);}
     }
   }

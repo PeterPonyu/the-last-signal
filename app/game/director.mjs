@@ -23,8 +23,9 @@ export function directorStep(run,dt,spawn,random){
  if(run.gateOpen)return;
  const c=run.campaign,cap=run.difficulty==='hard'?60:48;
  run.spawnClock-=dt;
- if(c.stage>=3&&!c.lieutenantSpawned){c.lieutenantSpawned=spawn(false,CAMPAIGN[run.areaIndex].lieutenant,true);}
- if(c.stage>=4&&!run.bossSpawned)run.bossSpawned=spawn(true);
+ if(c.stage>=2&&!c.championSpawned){c.championSpawned=spawn(true,CAMPAIGN[run.areaIndex].champion.role,false,'champion');}
+ if(c.stage>=3&&c.championDefeated&&!c.lieutenantSpawned){c.lieutenantSpawned=spawn(false,CAMPAIGN[run.areaIndex].lieutenant,true);}
+ if(c.stage>=4&&c.championDefeated&&!run.bossSpawned)run.bossSpawned=spawn(true);
  if(run.spawnClock>0||run.enemies.length>=cap)return;
  if(!c.spawnRemaining)nextEncounter(run,random);
  if(spawn(false,encounterRole(run,random)))c.spawnRemaining--;

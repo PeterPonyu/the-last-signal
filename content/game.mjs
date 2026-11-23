@@ -1,15 +1,15 @@
 export const WORLD = { width: 3600, height: 2400, left: 65, right: 3535, top: 75, bottom: 2340 };
 
 export const DIFFICULTIES = {
-  easy: { name: 'Dawn', label: 'Easy', description: 'Room to learn. Longer warnings, gentler attacks, more healing.', health: 160, damage: 0.65, enemyHealth: 0.85, speed: 0.88, pressure: 0.75, warning: 1.3, heal: 24 },
-  normal: { name: 'Resolve', label: 'Normal', description: 'The intended first challenge. Move, use cover, and weave your powers.', health: 120, damage: 1, enemyHealth: 1, speed: 1, pressure: 1, warning: 1, heal: 18 },
-  hard: { name: 'Defiance', label: 'Hard', description: 'Denser waves, faster pursuit, stronger Wardens. Every opening matters.', health: 100, damage: 1.4, enemyHealth: 1.22, speed: 1.13, pressure: 1.35, warning: 0.82, heal: 14 }
+  easy: { name: 'Dawn', label: 'Easy', description: 'Room to learn. Longer warnings, gentler attacks, more healing.', health: 160, damage: 0.65, enemyHealth: 0.85, championHealth: 1.5, speed: 0.88, pressure: 0.75, warning: 1.3, heal: 24 },
+  normal: { name: 'Resolve', label: 'Normal', description: 'The intended first challenge. Move, use cover, and weave your powers.', health: 120, damage: 1, enemyHealth: 1, championHealth: 1, speed: 1, pressure: 1, warning: 1, heal: 18 },
+  hard: { name: 'Defiance', label: 'Hard', description: 'Denser waves, faster pursuit, stronger Wardens. Every opening matters.', health: 100, damage: 1.4, enemyHealth: 1.22, championHealth: 1.22, speed: 1.13, pressure: 1.35, warning: 0.82, heal: 14 }
 };
 
 const prop = (x, y, type, radius, height) => ({ x, y, type, radius, height });
 export const AREAS = [
-  { id: 'garden', name: 'The Sunken Garden', chapter: 'I', subtitle: 'Learn to make a road.', art: 'battlefield-garden.png', boss: 'The Root Warden', bossAt: 38, bossHealth: 480,
-    intro: 'Three dormant beacons still remember the sun. Stand in their circles to kindle them. The garden will answer with its Warden.',
+  { id: 'garden', name: 'The Sunken Garden', chapter: 'I', subtitle: 'Learn to make a road.', art: 'garden-floor.png', regionalAsset:'gardenCast', detailTheme:0, bossAsset:'rootBoss', boss: 'The Root Warden', bossAt: 38, bossHealth: 480,
+    intro: 'Free the Hollow to awaken two roads. Protect a keeper, defeat the Briar Regent, and escort the living mainspring. The Root Warden will follow its light.',
     outro: 'Roots loosen their hold on the stones. A small mechanical fox wakes inside the beacon: Sol, the smallest sun. The Dawnweaver kneels beside the first living flower. “It was waiting for someone to try.”',
     spawn: {x:650,y:1550},
     districts: [{x:720,y:1480,name:'Pilgrim’s Approach'},{x:1800,y:650,name:'The Root Archive'},{x:2920,y:1710,name:'Orchard of First Light'}],
@@ -17,7 +17,7 @@ export const AREAS = [
     beacons: [{x:720,y:1480},{x:1800,y:650},{x:2920,y:1710}],
     obstacles: [prop(550,500,0,34,142),prop(620,590,1,40,118),prop(590,300,2,38,134),prop(1010,430,0,34,142),prop(1090,530,1,40,118),prop(850,730,3,36,110),prop(1280,270,2,34,125),prop(320,340,1,36,108)],
     decorations: [prop(200,220,6,0,85),prop(410,780,6,0,90),prop(1030,760,7,0,95),prop(1400,400,6,0,90),prop(700,200,7,0,95)] },
-  { id: 'causeway', name: 'The Echo Causeway', chapter: 'II', subtitle: 'Find shelter. Refuse the echo.', art: 'battlefield-causeway.png', boss: 'The Bell Warden', bossAt: 43, bossHealth: 720,
+  { id: 'causeway', name: 'The Echo Causeway', chapter: 'II', subtitle: 'Find shelter. Refuse the echo.', art: 'causeway-floor.png', regionalAsset:'causewayCast', detailTheme:1, bossAsset:'bellBoss', boss: 'The Bell Warden', bossAt: 43, bossHealth: 720,
     intro: 'The Choir has learned to strike from afar. Stone breaks its bolts. Keep moving when a teal mark gathers beneath your feet.',
     outro: 'The bell cracks. For a moment the city hears silence without an order inside it. Ahead, the court is burning gold.',
     spawn: {x:650,y:1550},
@@ -26,15 +26,33 @@ export const AREAS = [
     beacons: [{x:780,y:650},{x:1840,y:1800},{x:2940,y:760}],
     obstacles: [prop(520,300,3,42,125),prop(540,410,0,35,150),prop(530,650,3,42,125),prop(780,480,1,42,125),prop(1050,310,0,36,150),prop(1080,620,3,42,125),prop(1190,700,1,38,115),prop(300,740,0,32,135)],
     decorations: [prop(220,420,7,0,95),prop(680,230,7,0,95),prop(1370,740,7,0,95),prop(950,830,6,0,75)] },
-  { id: 'court', name: 'The Hollow Sun Court', chapter: 'III', subtitle: 'Choose who the dawn belongs to.', art: 'battlefield-court.png', boss: 'The Crown of Stillness', bossAt: 48, bossHealth: 1050,
-    intro: 'This is the Choir’s last seal. Three beacons will call its crown down to earth. Read the rings, shelter from its volleys, and keep a path open.',
-    outro: 'The crown falls. Zeyu opens his hand instead of closing it around the sun. A thousand small lights answer. The Dawnweaver smiles: “Now the road belongs to everyone.”',
+  { id: 'court', name: 'The Hollow Sun Court', chapter: 'III', subtitle: 'Give the forgotten their names.', art: 'court-floor.png', regionalAsset:'courtCast', detailTheme:2, bossAsset:'crownBoss', boss: 'The Crown of Stillness', bossAt: 48, bossHealth: 1050,
+    intro: 'The Crown holds the names of everyone the Choir erased. Free an archive wing, defeat the Nameless Judge, and protect the gathering. The sun needs a living heart beyond these walls.',
+    outro: 'The crown falls, and the erased names return as a thousand lights. Beneath the Court, the sun engine is cold. Sera opens a stair to the Emberfoundry: “A promise needs hands willing to build it.”',
     spawn: {x:650,y:1550},
     districts: [{x:790,y:1670,name:'The Refusing Steps'},{x:1760,y:650,name:'Court of Unspoken Names'},{x:2920,y:1650,name:'The Crown’s Horizon'}],
     lanterns: [{x:910,y:1670},{x:1880,y:650},{x:3040,y:1650}],
     beacons: [{x:790,y:1670},{x:1760,y:650},{x:2920,y:1650}],
     obstacles: [prop(490,370,0,38,160),prop(620,680,1,42,125),prop(1010,360,0,38,160),prop(1120,700,1,42,125),prop(800,500,3,40,120),prop(270,430,2,34,125),prop(1380,400,3,40,120)],
-    decorations: [prop(220,760,7,0,105),prop(690,180,7,0,105),prop(1450,750,7,0,105),prop(980,830,7,0,105)] }
+    decorations: [prop(220,760,7,0,105),prop(690,180,7,0,105),prop(1450,750,7,0,105),prop(980,830,7,0,105)] },
+  { id:'foundry', name:'The Emberfoundry', chapter:'IV', subtitle:'Build a heart that cannot be commanded.', art:'foundry-floor.png', regionalAsset:'foundryCast', detailTheme:0, bossAsset:'furnaceBoss', boss:'The Furnace Sovereign', bossAt:45, bossHealth:3700,
+    intro:'The Choir forged its chains here. Asha can turn the furnaces toward a shared dawn. Open the cooling sluices or rescue the ember bearer, break the Ash Marshal, and carry the new sun-heart through the foundry.',
+    outro:'The Furnace Sovereign falls beside an anvil still warm from a thousand stolen days. Asha lifts the Unchained Heart. The Dawnweaver shields its flame as Sol follows the rising sparks toward the Starfall Observatory.',
+    spawn:{x:650,y:1550},
+    districts:[{x:780,y:1520,name:'The Workers’ Stair'},{x:1760,y:590,name:'The Cooling Galleries'},{x:2890,y:1780,name:'Crucible of the Unchained'}],
+    lanterns:[{x:900,y:1520},{x:1880,y:590},{x:3010,y:1780}],
+    beacons:[{x:780,y:1520},{x:1760,y:590},{x:2890,y:1780}],
+    obstacles:[prop(440,420,0,38,150),prop(680,340,3,44,130),prop(910,720,1,42,125),prop(1100,430,3,46,140),prop(1230,1960,2,40,120),prop(2630,570,0,40,155),prop(3110,1020,1,44,125),prop(2890,2150,3,46,135)],
+    decorations:[prop(310,780,7,0,100),prop(1010,2150,6,0,90),prop(2050,350,7,0,105),prop(2640,990,6,0,90),prop(3260,2150,7,0,105)] },
+  { id:'observatory', name:'The Starfall Observatory', chapter:'V', subtitle:'Let the horizon belong to everyone.', art:'observatory-floor.png', regionalAsset:'observatoryCast', detailTheme:2, bossAsset:'constellationBoss', boss:'The Last Constellation', bossAt:48, bossHealth:4200,
+    intro:'Above the city, the Choir has chained the stars into one unchanging sky. Restore a lens or escort the horizon keeper, defeat the Horizon Eater, and align the shared light. The Last Constellation will descend.',
+    outro:'The last chain breaks. Zeyu releases the light instead of claiming it. Time, voice, names, and the warmth of willing hands rise into an open sky. Beside the Dawnweaver, Sol, and the keepers, he watches a thousand different roads greet the same dawn.',
+    spawn:{x:650,y:1550},
+    districts:[{x:770,y:720,name:'The Fallen Star Steps'},{x:1740,y:1810,name:'The Horizon Library'},{x:2910,y:800,name:'The Open Sky'}],
+    lanterns:[{x:890,y:720},{x:1860,y:1810},{x:3030,y:800}],
+    beacons:[{x:770,y:720},{x:1740,y:1810},{x:2910,y:800}],
+    obstacles:[prop(420,520,2,38,150),prop(1010,360,0,40,165),prop(1120,1030,3,43,130),prop(890,2070,1,42,125),prop(1530,1270,2,38,145),prop(2420,440,0,42,165),prop(2780,2070,3,44,135),prop(3150,1290,1,40,125)],
+    decorations:[prop(300,1000,7,0,105),prop(1170,2220,7,0,95),prop(2020,270,6,0,90),prop(2670,1170,7,0,105),prop(3280,2060,6,0,95)] }
 ];
 
 
@@ -63,6 +81,9 @@ export const COMBAT = {
   sunbreak: {duration:0.66, impact:0.28, cooldown:10, range:285},
   cast: {duration:0.32}, dash: {duration:0.2, cooldown:2.5},
   allyCast: {duration:0.55, impact:0.27}, mend: {duration:0.8, impact:0.42},
+  solarLance: {duration:0.6, impact:0.28, cooldown:12, range:620, width:32},
+  lunarNova: {duration:0.8, impact:0.42, cooldown:9, range:240},
+  solVolley: {duration:0.55, impact:0.33, cooldown:7, range:430},
   nurture: {amount:18, range:230, recipientCooldown:4},
   hurt: {duration:0.28}, death: {duration:0.8},
   charge: {windup:0.8, duration:0.42, recovery:0.65}
@@ -73,8 +94,8 @@ export const ASSETS = {
   heroActions: 'hero-painted.png', companionActions: 'dawnweaver-painted.png',
   heroReactions:'hero-painted.png', companionSupport:'dawnweaver-painted.png',
   solActions:'sol-painted.png',
-  commonCast:'common-cast.png',gardenCast:'garden-cast.png',causewayCast:'causeway-cast.png',courtCast:'court-cast.png',
-  rootBoss:'root-boss.png',bellBoss:'bell-boss.png',crownBoss:'crown-boss.png',keepersCast:'keepers-cast.png',radiance:'radiance-effects.png',worldDetails:'world-details.png',openGate:'gateways-open.png',
+  commonCast:'common-cast.png',gardenCast:'garden-cast.png',causewayCast:'causeway-cast.png',courtCast:'court-cast.png',foundryCast:'foundry-cast.png',observatoryCast:'observatory-cast.png',
+  rootBoss:'root-boss.png',bellBoss:'bell-boss.png',crownBoss:'crown-boss.png',furnaceBoss:'furnace-boss.png',constellationBoss:'constellation-boss.png',keepersCast:'keepers-cast.png',radiance:'radiance-effects.png',worldDetails:'world-details.png',openGate:'gateways-open.png',
   heroPortrait:'zeyu-golden.png', companionPortrait:'dawnweaver.png',
-  props: 'battlefield-props.png', garden:'garden-floor.png',causeway:'causeway-floor.png',court:'court-floor.png'
+  props: 'battlefield-props.png', garden:'garden-floor.png',causeway:'causeway-floor.png',court:'court-floor.png',foundry:'foundry-floor.png',observatory:'observatory-floor.png'
 };

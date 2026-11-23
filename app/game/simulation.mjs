@@ -16,12 +16,12 @@ export function createRun(seed = 7251, difficulty = 'normal') {
   const run={mode:'running',difficulty,seed:seed>>>0,initialSeed:seed>>>0,time:0,areaTime:0,areaIndex:0,
     kills:0,level:1,nextId:1,spawnClock:2,fireClock:0,bossSpawned:false,ending:null,inputBuffer:null,autoPowers:false,formationAngle:0,
     upgrades:{},rewards:[],routeChoices:[],storyTokens:[],enemies:[],shots:[],hazards:[],pickups:[],effects:[],corpses:[],events:[],areaResults:[],
-    stats:{damageTaken:0,hitsTaken:0,healing:0,spawned:0,meleeKills:0,allyKills:0,coverBlocks:0,beacons:0,peakEnemies:0,guardBreaks:0,shieldBlocked:0,solKills:0,lanterns:0,retiredEnemies:0,projectileHits:0,projectileDamage:0,allyCasts:0,solCasts:0,npcDefeats:0,npcDamageTaken:0,npcCasts:0,npcKills:0,npcHealing:0,abilities:{slash:0,dash:0,pulse:0,sunbreak:0}},
-    companion:{x:AREAS[0].spawn.x-50,y:AREAS[0].spawn.y+60,faceX:1,moving:false,walkPhase:0,idlePhase:0,cast:0,mend:0,ward:0,targetId:null,fireClock:0.7,mendCooldown:14},
-    sol:{active:false,x:AREAS[0].spawn.x-80,y:AREAS[0].spawn.y,faceX:1,moving:false,walkPhase:0,idlePhase:0,pounce:0,ward:0,fireClock:1,wardCooldown:8,targetId:null},
+    stats:{damageTaken:0,hitsTaken:0,healing:0,spawned:0,meleeKills:0,allyKills:0,coverBlocks:0,beacons:0,peakEnemies:0,guardBreaks:0,shieldBlocked:0,solKills:0,lanterns:0,retiredEnemies:0,projectileHits:0,projectileDamage:0,allyCasts:0,solCasts:0,npcDefeats:0,npcDamageTaken:0,npcCasts:0,npcKills:0,npcHealing:0,abilities:{slash:0,dash:0,pulse:0,sunbreak:0,solarLance:0,lunarNova:0,solVolley:0}},
+    companion:{x:AREAS[0].spawn.x-50,y:AREAS[0].spawn.y+60,faceX:1,moving:false,walkPhase:0,idlePhase:0,cast:0,mend:0,ward:0,targetId:null,fireClock:0.7,mendCooldown:14,nova:0,novaCooldown:5},
+    sol:{active:false,x:AREAS[0].spawn.x-80,y:AREAS[0].spawn.y,faceX:1,moving:false,walkPhase:0,idlePhase:0,pounce:0,ward:0,fireClock:1,wardCooldown:8,volley:0,volleyCooldown:4,targetId:null},
     player:{...AREAS[0].spawn,vx:0,vy:0,hp:setting.health,maxHp:setting.health,speed:205,damage:25,bladePower:1,bladeRange:0,bladeArc:0,bladeCooldown:1,breakCooldown:1,fireInterval:0.42,fireRange:500,volley:false,finisher:false,armor:0,wardLevel:0,wardClock:18,mendBonus:0,mendInterval:18,dashInterval:2.5,faceX:1,faceY:0,
       dash:0,dashCooldown:0,pulseCooldown:0,invulnerable:0,moving:false,walkPhase:0,idlePhase:0,travelX:1,travelY:0,footClock:0,
-      slash:0,slashCooldown:0,cast:0,sunbreak:0,sunbreakCooldown:0,hurt:0,deathAge:0,shield:0,shieldTime:0}
+      slash:0,slashCooldown:0,cast:0,sunbreak:0,sunbreakCooldown:0,solarLance:0,solarLanceCooldown:0,hurt:0,deathAge:0,shield:0,shieldTime:0}
   };
   prepareArea(run);return run;
 }
@@ -39,10 +39,10 @@ export function advanceArea(run){
   run.areaIndex++;run.areaTime=0;run.spawnClock=2;run.bossSpawned=false;run.fireClock=0;run.ending=null;
   for(const key of ['enemies','shots','hazards','pickups','effects','corpses'])run[key]=[];
   const p=run.player;heal(run,35);
-  Object.assign(p,{...AREAS[run.areaIndex].spawn,vx:0,vy:0,travelX:1,travelY:0,slash:0,cast:0,dash:0,sunbreak:0,hurt:0,shield:0,shieldTime:0,moving:false,
-    dashCooldown:0,pulseCooldown:0,slashCooldown:0,sunbreakCooldown:0,invulnerable:1});
-  Object.assign(run.companion,{x:p.x-50,y:p.y+60,cast:0,mend:0,ward:0,moving:false,fireClock:0.7,mendCooldown:8});
-  Object.assign(run.sol,{active:true,x:p.x-80,y:p.y,pounce:0,ward:0,moving:false,fireClock:1,wardCooldown:8});
+  Object.assign(p,{...AREAS[run.areaIndex].spawn,vx:0,vy:0,travelX:1,travelY:0,slash:0,cast:0,dash:0,sunbreak:0,solarLance:0,hurt:0,shield:0,shieldTime:0,moving:false,
+    dashCooldown:0,pulseCooldown:0,slashCooldown:0,sunbreakCooldown:0,solarLanceCooldown:0,invulnerable:1});
+  Object.assign(run.companion,{x:p.x-50,y:p.y+60,cast:0,mend:0,ward:0,moving:false,fireClock:0.7,mendCooldown:8,nova:0,novaCooldown:3});
+  Object.assign(run.sol,{active:true,x:p.x-80,y:p.y,pounce:0,ward:0,moving:false,fireClock:1,wardCooldown:8,volley:0,volleyCooldown:3});
   prepareArea(run);run.mode='running';run.events.push('area');return true;
 }
 export function interact(run){
@@ -64,7 +64,7 @@ export function interact(run){
 function random(run){run.seed=(Math.imul(run.seed,1664525)+1013904223)>>>0;return run.seed/4294967296;}
 function heal(run,amount){const p=run.player;if(p.hp<=0)return;const healed=Math.max(0,Math.min(p.maxHp-p.hp,amount));p.hp+=healed;run.stats.healing+=healed;}
 function beginEnding(run,nextMode){if(run.mode!=='running')return;run.mode='ending';run.inputBuffer=null;run.ending={nextMode,remaining:COMBAT.death.duration};run.player.moving=false;run.events.push(nextMode);}
-function spawn(run,boss=false,forcedRole=null,lieutenant=false){
+function spawn(run,boss=false,forcedRole=null,lieutenant=false,bossRank='warden'){
   const area=AREAS[run.areaIndex],setting=DIFFICULTIES[run.difficulty],p=run.player;
   const valid=q=>distance(q,p)>300&&(boss||Math.abs(q.x-p.x)>680||Math.abs(q.y-p.y)>440)&&!areaObstacles(run).some(o=>distance(q,o)<o.radius+45);
   let point=null;
@@ -75,14 +75,15 @@ function spawn(run,boss=false,forcedRole=null,lieutenant=false){
   }
   if(!point)for(let y=Math.max(WORLD.top,p.y-850);y<=Math.min(WORLD.bottom,p.y+850)&&!point;y+=120)for(let x=Math.max(WORLD.left,p.x-1000);x<=Math.min(WORLD.right,p.x+1000);x+=120)if(valid({x,y})){point={x,y};break;}
   if(!point)return false;
-  const type=boss?'boss':forcedRole||'walker',roleKey=Object.hasOwn(ENEMY_ROLES,type)?type:null,role=ENEMY_ROLES[roleKey],campaign=CAMPAIGN[run.areaIndex];
-  const def=role||(boss?{health:campaign.bossHealth,speed:campaign.bossSpeed,radius:42,damage:20}:ENEMIES[type]);
-  const hp=def.health*setting.enemyHealth*(boss?1:1+run.areaIndex*0.12+Math.min(run.campaign.stage,3)*0.12)*(lieutenant?3.2:1);
-  run.enemies.push({id:run.nextId++,type:roleKey||type,areaIndex:run.areaIndex,role:roleKey,skill:role?.skill,guarded:role?!!role.guarded:type==='sentinel',ranged:!!role?.skill||type==='cantor',phase:1,phaseShift:0,phaseCasts:[0,0],bossKind:boss?campaign.bossKind:null,lieutenant,storyCredit:true,casts:0,...point,hp,maxHp:hp,radius:def.radius,speed:def.speed*setting.speed,boss,runner:role?.runner||(!role&&['runner','pack'].includes(type)),
+  const type=boss&&bossRank!=='champion'?'boss':forcedRole||'walker',roleKey=Object.hasOwn(ENEMY_ROLES,type)?type:null,role=ENEMY_ROLES[roleKey],campaign=CAMPAIGN[run.areaIndex];
+  const champion=boss&&bossRank==='champion'?campaign.champion:null;
+  const def=boss?{health:champion?.health||campaign.bossHealth,speed:champion?.speed||campaign.bossSpeed,radius:champion?32:42,damage:champion?17:20}:role||ENEMIES[type];
+  const hp=def.health*(boss?(bossRank==='champion'?setting.championHealth:Math.max(1,setting.enemyHealth)):setting.enemyHealth)*(boss?1:1+run.areaIndex*0.12+Math.min(run.campaign.stage,3)*0.12)*(lieutenant?3.2:1);
+  run.enemies.push({id:run.nextId++,type:roleKey||type,areaIndex:run.areaIndex,role:roleKey,skill:role?.skill,guarded:role?!!role.guarded:type==='sentinel',ranged:!!role?.skill||type==='cantor',phase:1,phaseShift:0,phaseCasts:[0,0],phaseOpener:!!boss&&bossRank==='champion',bossKind:boss?campaign.bossKind:null,bossRank:boss?bossRank:null,encounterKind:boss?bossRank:null,encounterId:boss?(champion?.id||campaign.id+'-warden'):null,bossName:boss?(champion?.name||area.boss):null,encounterPhases:boss?[1]:[],distanceTravelled:0,lieutenant,storyCredit:true,casts:0,...point,hp,maxHp:hp,radius:def.radius,speed:def.speed*setting.speed,boss,runner:role?.runner||(!role&&['runner','pack'].includes(type)),
     skin:role?.skin||(boss?(run.areaIndex===1?'cantor':'sentinel'):type==='cantor'||type==='sentinel'?type:'hollow'),
     damage:def.damage*setting.damage,hit:0,stagger:0,guardBroken:0,warning:1.2*setting.warning,
     attack:0,attackDuration:(type==='sentinel'?0.95:0.7)*setting.warning,attackCooldown:0,walkPhase:random(run)*4,moving:false,
-    spell:0,spellDuration:0.9*setting.warning,spellCooldown:boss?2.8:1.4+random(run)*2.6,aimX:0,aimY:0,faceX:p.x>=point.x?1:-1,
+    spell:0,spellDuration:0.9*setting.warning,spellCooldown:boss?0.45:1.4+random(run)*2.6,aimX:0,aimY:0,faceX:p.x>=point.x?1:-1,
     charge:0,chargeWarning:0,chargeCooldown:1.4+random(run)*3,chargeRecovery:0,chargeX:0,chargeY:0,focusId:'hero',steerSide:run.nextId%2?1:-1,stuckTime:0,intent:'arriving'});
   run.stats.spawned++;run.stats.peakEnemies=Math.max(run.stats.peakEnemies,run.enemies.length);
   if(boss)run.events.push('boss');return true;
@@ -93,7 +94,7 @@ function hurtPlayer(run,amount){
   if(blocked){run.events.push('ward-hit');run.effects.push({kind:'ward',x:p.x,y:p.y,age:0,life:0.3});}
   if(amount<=0){p.invulnerable=0.2;return;}
   const damage=Math.min(p.hp,amount*(1-Math.min(0.35,p.armor||0)));p.hp-=damage;p.invulnerable=0.75;p.hurt=COMBAT.hurt.duration;
-  p.slash=0;p.sunbreak=0;p.cast=0;run.stats.damageTaken+=damage;run.stats.hitsTaken++;run.events.push('hurt');
+  p.slash=0;p.sunbreak=0;p.solarLance=0;p.cast=0;run.stats.damageTaken+=damage;run.stats.hitsTaken++;run.events.push('hurt');
   run.effects.push({kind:'damage',x:p.x,y:p.y-55,value:Math.ceil(damage),age:0,life:0.6});
   if(p.hp<=0)beginEnding(run,'defeat');
 }
@@ -101,7 +102,7 @@ function hurtFriendly(run,target,amount){
   if(target===run.player)hurtPlayer(run,amount);else if(target)hurtNpc(run,target,amount);
 }
 function hit(run,enemy,damage,source='hero'){
-  if(enemy.hp<=0||run.mode!=='running'||run.gateOpen||enemy.phaseShift>0)return;
+  if(enemy.hp<=0||run.mode!=='running'||run.gateOpen||enemy.phaseShift>0||enemy.openerGuard)return;
   const beforeHp=enemy.hp,absorbed=(enemy.guarded||enemy.type==='sentinel')&&enemy.guardBroken<=0&&!['melee','sunbreak','pulse'].includes(source);
   if((enemy.guarded||enemy.type==='sentinel')&&enemy.guardBroken<=0){
     if(source==='melee'||source==='sunbreak'||source==='pulse'){
@@ -112,8 +113,8 @@ function hit(run,enemy,damage,source='hero'){
   if(run.player.finisher&&['melee','sunbreak'].includes(source)&&enemy.hp<enemy.maxHp/2)damage*=1.4;
   const nextHp=Math.max(0,enemy.hp-damage);
   if(enemy.boss&&enemy.bossKind&&enemy.phase===1&&nextHp<=enemy.maxHp/2){
-    enemy.hp=enemy.maxHp/2;enemy.phase=2;enemy.phaseShift=1.1;enemy.spell=0;enemy.attack=0;enemy.spellCooldown=0.2;enemy.speed*=1.25;
-    run.campaign.bossPhases.push(2);run.events.push('boss-phase');
+    enemy.hp=enemy.maxHp/2;enemy.phase=2;enemy.phaseShift=1.1;enemy.spell=0;enemy.attack=0;enemy.spellCooldown=0.2;enemy.speed*=1.25;enemy.phaseOpener=true;
+    enemy.encounterPhases||=[1];enemy.encounterPhases.push(2);if(enemy.bossRank!=='champion')run.campaign.bossPhases.push(2);run.events.push('boss-phase');
   }else enemy.hp=nextHp;
   enemy.hit=0.22;
   if(!enemy.boss&&(source==='melee'||source==='sunbreak')){enemy.stagger=Math.max(enemy.stagger,0.25);enemy.attack=0;enemy.spell=0;enemy.charge=0;enemy.chargeWarning=0;enemy.chargeRecovery=0.4;enemy.attackCooldown=0.6;}
@@ -127,14 +128,24 @@ function hit(run,enemy,damage,source='hero'){
   if(source==='npc')run.stats.npcKills++;
   run.corpses.push({...enemy,deathAge:0,life:(enemy.boss?REMAINS.bossHold:REMAINS.hold)+REMAINS.fade});run.corpses=run.corpses.slice(-REMAINS.limit);
   if(run.kills%7===0)run.pickups.push({x:enemy.x,y:enemy.y,life:22});
-  if(enemy.boss){run.areaResults.push({area:AREAS[run.areaIndex].name,seconds:run.time-run.areaStart.time,kills:run.kills-run.areaStart.kills,damageTaken:run.stats.damageTaken-run.areaStart.damage,route:run.campaign.choice,routeCompleted:!!run.campaign.routes.find(r=>r.id===run.campaign.choice)?.completed,routeFailures:run.campaign.routes.reduce((sum,r)=>sum+r.failures,0),defeats:run.campaign.defeats,milestones:[...run.campaign.milestones],eventComplete:run.campaign.event.complete,lieutenantDefeated:run.campaign.lieutenantDefeated,bossPhases:[...run.campaign.bossPhases],bossDistance:run.campaign.bossDistance,bossCasts:[...(enemy.phaseCasts||[])],npcs:run.campaign.npcs.filter(n=>n.met).map(n=>n.id)});run.gateOpen=true;run.storyTokens.push(JOURNEY[run.areaIndex].token);run.shots=[];run.hazards=[];run.enemies=[];run.events.push('gate-open');}
+  if(enemy.boss){
+    const c=run.campaign;
+    c.bossEncounters.push({id:enemy.encounterId||CAMPAIGN[run.areaIndex].id+'-warden',name:enemy.bossName||AREAS[run.areaIndex].boss,kind:enemy.bossRank||'warden',phases:[...(enemy.encounterPhases||c.bossPhases)],distance:enemy.distanceTravelled||c.bossDistance,casts:[...(enemy.phaseCasts||[])]});
+    if(enemy.bossRank==='champion'){
+      c.championDefeated=true;heal(run,18);campaignNotice(run,enemy.bossName+' is freed. Protect the gathering; the Warden still seals the road.');run.events.push('champion-defeated');
+    }else{
+      run.areaResults.push({area:AREAS[run.areaIndex].name,seconds:run.time-run.areaStart.time,kills:run.kills-run.areaStart.kills,damageTaken:run.stats.damageTaken-run.areaStart.damage,route:c.choice,routeCompleted:!!c.routes.find(r=>r.id===c.choice)?.completed,routeFailures:c.routes.reduce((sum,r)=>sum+r.failures,0),defeats:c.defeats,milestones:[...c.milestones],eventComplete:c.event.complete,lieutenantDefeated:c.lieutenantDefeated,championDefeated:c.championDefeated,bossEncounters:[...c.bossEncounters],bossPhases:[...c.bossPhases],bossDistance:enemy.distanceTravelled||c.bossDistance,bossCasts:[...(enemy.phaseCasts||[])],npcs:c.npcs.filter(n=>n.met).map(n=>n.id)});
+      run.gateOpen=true;run.storyTokens.push(JOURNEY[run.areaIndex].token);run.shots=[];run.hazards=[];run.enemies=[];run.events.push('gate-open');
+    }
+  }
 }
 export function useAbility(run,name){
   if(run.mode!=='running')return false;
   const p=run.player;
-  if(name==='slash'&&p.slashCooldown<=0&&p.dash<=0&&p.sunbreak<=0&&p.hurt<=0){run.inputBuffer=null;p.slash=COMBAT.slash.duration;p.slashCooldown=COMBAT.slash.cooldown*p.bladeCooldown;p.cast=0;run.stats.abilities.slash++;return true;}
-  if(name==='sunbreak'&&p.sunbreakCooldown<=0&&p.dash<=0&&p.slash<=0&&p.hurt<=0){run.inputBuffer=null;p.sunbreak=COMBAT.sunbreak.duration;p.sunbreakCooldown=COMBAT.sunbreak.cooldown*p.breakCooldown;p.cast=0;run.stats.abilities.sunbreak++;return true;}
-  if(name==='dash'&&p.dashCooldown<=0){run.inputBuffer=null;p.dash=COMBAT.dash.duration;p.dashCooldown=p.dashInterval;p.invulnerable=Math.max(p.invulnerable,0.35);p.hurt=0;p.slash=0;p.sunbreak=0;run.stats.abilities.dash++;run.events.push('dash');return true;}
+  if(name==='solarLance'&&p.solarLanceCooldown<=0&&p.dash<=0&&p.slash<=0&&p.sunbreak<=0&&p.hurt<=0){run.inputBuffer=null;p.solarLance=COMBAT.solarLance.duration;p.solarLanceCooldown=COMBAT.solarLance.cooldown;p.cast=0;run.stats.abilities.solarLance++;return true;}
+  if(name==='slash'&&p.solarLance<=0&&p.slashCooldown<=0&&p.dash<=0&&p.sunbreak<=0&&p.hurt<=0){run.inputBuffer=null;p.slash=COMBAT.slash.duration;p.slashCooldown=COMBAT.slash.cooldown*p.bladeCooldown;p.cast=0;run.stats.abilities.slash++;return true;}
+  if(name==='sunbreak'&&p.solarLance<=0&&p.sunbreakCooldown<=0&&p.dash<=0&&p.slash<=0&&p.hurt<=0){run.inputBuffer=null;p.sunbreak=COMBAT.sunbreak.duration;p.sunbreakCooldown=COMBAT.sunbreak.cooldown*p.breakCooldown;p.cast=0;run.stats.abilities.sunbreak++;return true;}
+  if(name==='dash'&&p.dashCooldown<=0){run.inputBuffer=null;p.dash=COMBAT.dash.duration;p.dashCooldown=p.dashInterval;p.invulnerable=Math.max(p.invulnerable,0.35);p.hurt=0;p.slash=0;p.sunbreak=0;p.solarLance=0;run.stats.abilities.dash++;run.events.push('dash');return true;}
   if(name==='pulse'&&p.pulseCooldown<=0){
     run.inputBuffer=null;p.pulseCooldown=8;p.cast=COMBAT.cast.duration;run.stats.abilities.pulse++;run.effects.push({kind:'pulse',x:p.x,y:p.y,age:0,life:0.7});
     for(const npc of activeNpcs(run))if(distance(npc,p)<210&&clearPath(p,npc,areaObstacles(run),3))shieldNpc(run,npc);
@@ -146,7 +157,7 @@ export function useAbility(run,name){
   return false;
 }
 
-const ABILITIES=['slash','sunbreak','dash','pulse'];
+const ABILITIES=['slash','sunbreak','dash','pulse','solarLance'];
 function applyAim(run,name,aim){
   if(!aim||!Number.isFinite(aim.x)||!Number.isFinite(aim.y))return;
   const length=Math.hypot(aim.x,aim.y);if(length>0&&(name!=='pulse')){run.player.faceX=aim.x/length;run.player.faceY=aim.y/length;}
@@ -211,10 +222,12 @@ function shoot(run,body,target,damage,source='hero',hostile=false,angleOffset=0)
 }
 function castEnemySpell(run,e){
   const setting=DIFFICULTIES[run.difficulty],aim={x:e.aimX,y:e.aimY};
+  if(e.boss&&e.bossKind)e.phaseCasts[(e.castPhase||e.phase)-1]++;
+  e.openerGuard=false;
   const mark=(point,radius=70,delay=0,inner=0)=>{const hazard={x:clamp(point.x,WORLD.left,WORLD.right),y:clamp(point.y,WORLD.top,WORLD.bottom),radius,inner,kind:e.castSkill||e.skill||'rootfall',warning:(1.05+delay)*setting.warning,life:0.35,damage:e.damage,triggered:false};if(hasHazardEscape(run.player,run.hazards,hazard,areaObstacles(run)))run.hazards.push(hazard);return hazard;};
   const fan=count=>{for(let i=0;i<count;i++)shoot(run,e,aim,e.damage,'enemy',true,(i-(count-1)/2)*0.26);};
   const radial=count=>{for(let i=0;i<count;i++)shoot(run,e,aim,e.damage,'enemy',true,i*Math.PI*2/count);};
-  const skill=e.castSkill||e.skill||(e.boss?['rootfall','fan','crown'][run.areaIndex]:'bolt');
+  const skill=e.castSkill||e.skill||(e.boss?CAMPAIGN[run.areaIndex].bossSkills[0][0]:'bolt');
   if(skill==='nurture'){
     const support=COMBAT.nurture;
     for(const ally of run.enemies)if(!ally.boss&&ally!==e&&ally.hp>0&&ally.hp<ally.maxHp&&run.time>=(ally.nurtureUntil||0)&&distance(e,ally)<support.range){
@@ -224,6 +237,9 @@ function castEnemySpell(run,e){
   }
   if(skill==='forge'){const anchor=mark(aim,165,1.4,90);anchor.anchorHp=40;}
   if(skill==='afterimage')for(let i=0;i<3;i++)mark({x:aim.x+(i-1)*105,y:aim.y+(i-1)*55},48,i*0.32);
+  if(skill==='meteor')for(let i=0;i<3;i++)mark({x:aim.x+Math.cos(i*2.1)*110,y:aim.y+Math.sin(i*2.1)*110},e.boss?85:58,i*0.3);
+  if(skill==='sweep')fan(e.boss?7:5);
+  if(skill==='seeker'){for(const offset of [-0.13,0,0.13])shoot(run,e,aim,e.damage*0.8,'enemy',true,offset);}
   if(skill==='bolt')shoot(run,e,aim,e.damage,'enemy',true);
   if(skill==='rootfall')mark(aim,e.boss?95:62);
   if(skill==='fan')fan(e.boss&&e.phase===2?5:3);
@@ -241,8 +257,9 @@ function commitSpell(run,e,target){
   const phase=e.boss&&e.hp<=e.maxHp/2?2:1;
   if(e.boss&&phase!==e.phase){e.phase=phase;run.events.push('boss-phase');}
   const count=e.casts||0;
-  e.castSkill=e.skill||(e.boss?(phase===1?['rootfall','fan','crown'][run.areaIndex]:[['rootline','ring'],['fan','resonance'],['cross','crown']][run.areaIndex][count%2]):'bolt');
-  if(e.boss&&e.bossKind)e.phaseCasts[phase-1]++;
+  const repertoire=CAMPAIGN[run.areaIndex].bossSkills[phase-1];
+  e.castSkill=e.boss?(e.bossRank==='champion'&&(phase===1||count%2===0)?e.skill:repertoire[count%repertoire.length]):e.skill||'bolt';
+  e.castPhase=phase;
   run.campaign.heavyClock=run.difficulty==='hard'?0.32:0.55;
   e.casts=count+1;e.intent='cast';e.spell=e.spellDuration;e.aimX=target.x;e.aimY=target.y;
   e.spellCooldown=(e.boss?4.4:e.role?5.5:4)+random(run)*1.2;
@@ -256,6 +273,8 @@ function updateEnemies(run,dt){
     if(e.warning>0||e.stagger>0||e.chargeRecovery>0||e.phaseShift>0)continue;
     const target=enemyTarget(e,p,npcs,run.enemies,run.time,run.difficulty),dist=target?distance(e,target):Infinity;
     if(target)faceToward(e,target.x-e.x,target.y-e.y);
+    if(e.openerGuard&&e.spell<=0)e.openerGuard=false;
+    if(e.phaseOpener&&target&&e.spell<=0){e.phaseOpener=false;commitSpell(run,e,target);e.openerGuard=true;continue;}
     if(e.chargeWarning>0){e.chargeWarning=Math.max(0,e.chargeWarning-dt);if(e.chargeWarning===0)e.charge=COMBAT.charge.duration;continue;}
     if(e.charge>0){
       e.charge=Math.max(0,e.charge-dt);const before={x:e.x,y:e.y};
@@ -285,7 +304,7 @@ function updateEnemies(run,dt){
       const dir=enemySteering(e,target,obstacles,target===p?run.navigation:targetNavigation(target,obstacles)),before={x:e.x,y:e.y};e.intent=dir.intent;
       moveBody(e,dir.x*e.speed*dt,dir.y*e.speed*dt,areaObstacles(run),e.radius);const moved=distance(before,e);e.moving=moved>0.01;
       if(e.moving)e.walkPhase+=moved/6;
-      if(e.boss)run.campaign.bossDistance+=moved;
+      if(e.boss){e.distanceTravelled=(e.distanceTravelled||0)+moved;if(e.bossRank!=='champion')run.campaign.bossDistance+=moved;}
       e.stuckTime=moved<e.speed*dt*0.2?(e.stuckTime||0)+dt:0;
       if(e.stuckTime>0.6){e.steerSide=-(e.steerSide||1);e.stuckTime=0;}
     }
@@ -297,8 +316,8 @@ function updateParty(run,dt){
   for(const body of [ally,run.sol]){
     const gap=distance(body,p);if(gap>230)body.rejoining=true;else if(gap<115)body.rejoining=false;
   }
-  const castBefore=ally.cast,mendBefore=ally.mend;
-  for(const key of ['cast','mend','ward','mendCooldown'])ally[key]=Math.max(0,(ally[key]||0)-dt);
+  const castBefore=ally.cast,mendBefore=ally.mend,novaBefore=ally.nova||0;
+  for(const key of ['cast','mend','ward','mendCooldown','nova','novaCooldown'])ally[key]=Math.max(0,(ally[key]||0)-dt);
   ally.fireClock-=dt;ally.idlePhase+=dt;
   if(castBefore>COMBAT.allyCast.duration-COMBAT.allyCast.impact&&ally.cast<=COMBAT.allyCast.duration-COMBAT.allyCast.impact){
     const target=run.enemies.find(e=>e.id===ally.targetId&&e.hp>0);if(target&&clearPath(ally,target,areaObstacles(run),3)){shoot(run,ally,target,(21+run.areaIndex*5)*0.75,'ally');run.stats.allyCasts++;}
@@ -311,19 +330,31 @@ function updateParty(run,dt){
       run.effects.push({kind:'mend',x:recipient.x,y:recipient.y,age:0,life:0.8});run.events.push('mend');
     }
   }
+  if(novaBefore>COMBAT.lunarNova.duration-COMBAT.lunarNova.impact&&ally.nova<=COMBAT.lunarNova.duration-COMBAT.lunarNova.impact){
+    for(const e of run.enemies)if(e.hp>0&&e.warning<=0&&distance(e,ally)<COMBAT.lunarNova.range&&clearPath(ally,e,obstacles,3))hit(run,e,42+p.damage*0.35,'ally');
+    run.shots=run.shots.filter(s=>!s.hostile||distance(s,ally)>COMBAT.lunarNova.range);
+    run.effects.push({kind:'lunar-nova',x:ally.x,y:ally.y,age:0,life:0.8});run.events.push('lunar-nova');
+  }
   ally.moving=false;
-  if(ally.cast<=0&&ally.mend<=0)followPartyMember(run,ally,48,255,dt,16);
+  if(ally.cast<=0&&ally.mend<=0&&ally.nova<=0)followPartyMember(run,ally,48,255,dt,16);
   const mend=ally.mendCooldown<=0?supportTarget(run,ally):null;
-  if(mend&&ally.cast<=0&&ally.mend<=0&&!ally.rejoining){ally.mend=COMBAT.mend.duration;ally.mendTargetId=mend.id;ally.mendCooldown=p.mendInterval;ally.moving=false;}
-  else if(ally.fireClock<=0&&ally.cast<=0&&ally.mend<=0&&!ally.rejoining){const target=alliedTarget(run.enemies,ally,480,obstacles,protectedNpc);if(target){ally.cast=COMBAT.allyCast.duration;ally.fireClock=0.9;ally.targetId=target.id;ally.moving=false;faceToward(ally,target.x-ally.x,target.y-ally.y);}}
+  if(mend&&ally.cast<=0&&ally.mend<=0&&ally.nova<=0&&!ally.rejoining){ally.mend=COMBAT.mend.duration;ally.mendTargetId=mend.id;ally.mendCooldown=p.mendInterval;ally.moving=false;}
+  else if(run.areaIndex>=1&&ally.novaCooldown<=0&&ally.cast<=0&&ally.mend<=0&&ally.nova<=0&&!ally.rejoining&&nearestTarget(run,ally,COMBAT.lunarNova.range)){ally.nova=COMBAT.lunarNova.duration;ally.novaCooldown=COMBAT.lunarNova.cooldown;ally.moving=false;run.stats.abilities.lunarNova++;}
+  else if(ally.fireClock<=0&&ally.cast<=0&&ally.mend<=0&&ally.nova<=0&&!ally.rejoining){const target=alliedTarget(run.enemies,ally,480,obstacles,protectedNpc);if(target){ally.cast=COMBAT.allyCast.duration;ally.fireClock=0.9;ally.targetId=target.id;ally.moving=false;faceToward(ally,target.x-ally.x,target.y-ally.y);}}
   const sol=run.sol;if(!sol.active)return;
-  const before=sol.pounce;for(const key of ['pounce','ward','wardCooldown'])sol[key]=Math.max(0,sol[key]-dt);sol.fireClock-=dt;sol.idlePhase+=dt;
+  const before=sol.pounce,volleyBefore=sol.volley||0;for(const key of ['pounce','ward','wardCooldown','volley','volleyCooldown'])sol[key]=Math.max(0,(sol[key]||0)-dt);sol.fireClock-=dt;sol.idlePhase+=dt;
   if(before>0.22&&sol.pounce<=0.22){const target=run.enemies.find(e=>e.id===sol.targetId&&e.hp>0);if(target&&clearPath(sol,target,areaObstacles(run),3)){shoot(run,sol,target,19*1.2/1.65,'sol');run.stats.solCasts++;}}
+  if(volleyBefore>COMBAT.solVolley.duration-COMBAT.solVolley.impact&&sol.volley<=COMBAT.solVolley.duration-COMBAT.solVolley.impact){
+    const targets=run.enemies.filter(e=>e.hp>0&&e.warning<=0&&distance(e,sol)<COMBAT.solVolley.range&&clearPath(sol,e,obstacles,3)).sort((a,b)=>distance(a,sol)-distance(b,sol)).slice(0,3);
+    for(const target of targets){shoot(run,sol,target,32+p.damage*0.22,'sol');run.stats.solCasts++;}
+    run.effects.push({kind:'sol-volley',x:sol.x,y:sol.y,age:0,life:0.5});run.events.push('sol-volley');
+  }
   sol.moving=false;
-  if(sol.pounce<=0&&sol.ward<=0)followPartyMember(run,sol,-48,280,dt,13);
+  if(sol.pounce<=0&&sol.ward<=0&&sol.volley<=0)followPartyMember(run,sol,-48,280,dt,13);
   const ward=sol.wardCooldown<=0?supportTarget(run,sol,300):null;
-  if(ward&&ward.body.hp<ward.body.maxHp*0.75&&ward.body.shield<=0&&!sol.rejoining){sol.ward=0.8;sol.wardCooldown=18;sol.moving=false;if(ward.body===p){p.shield=18;p.shieldTime=6;}else shieldNpc(run,ward.body,24);ally.ward=0.8;run.events.push('ward');}
-  else if(sol.fireClock<=0&&sol.pounce<=0&&sol.ward<=0&&!sol.rejoining){const target=alliedTarget(run.enemies,sol,350,obstacles,protectedNpc);if(target){sol.pounce=0.55;sol.fireClock=1.2;sol.targetId=target.id;sol.moving=false;faceToward(sol,target.x-sol.x,target.y-sol.y);}}
+  if(ward&&ward.body.hp<ward.body.maxHp*0.75&&ward.body.shield<=0&&!sol.rejoining&&sol.volley<=0&&sol.pounce<=0){sol.ward=0.8;sol.wardCooldown=18;sol.moving=false;if(ward.body===p){p.shield=18;p.shieldTime=6;}else shieldNpc(run,ward.body,24);ally.ward=0.8;run.events.push('ward');}
+  else if(run.areaIndex>=2&&sol.volleyCooldown<=0&&sol.pounce<=0&&sol.ward<=0&&sol.volley<=0&&!sol.rejoining&&nearestTarget(run,sol,COMBAT.solVolley.range)){sol.volley=COMBAT.solVolley.duration;sol.volleyCooldown=COMBAT.solVolley.cooldown;sol.moving=false;run.stats.abilities.solVolley++;}
+  else if(sol.fireClock<=0&&sol.pounce<=0&&sol.ward<=0&&sol.volley<=0&&!sol.rejoining){const target=alliedTarget(run.enemies,sol,350,obstacles,protectedNpc);if(target){sol.pounce=0.55;sol.fireClock=1.2;sol.targetId=target.id;sol.moving=false;faceToward(sol,target.x-sol.x,target.y-sol.y);}}
 }
 function updateProjectiles(run,dt){
   const p=run.player,obstacles=areaObstacles(run);
@@ -354,7 +385,9 @@ function ageVisuals(run,dt){
 }
 export function useAutoPowers(run){
   const p=run.player;
-  if(!run.autoPowers||run.mode!=='running'||run.gateOpen||run.inputBuffer||p.hurt>0||p.dash>0||p.slash>0||p.sunbreak>0||p.cast>0)return;
+  if(!run.autoPowers||run.mode!=='running'||run.gateOpen||run.inputBuffer||p.hurt>0||p.dash>0||p.slash>0||p.sunbreak>0||p.solarLance>0||p.cast>0)return;
+  const distant=nearestTarget(run,p,COMBAT.solarLance.range);
+  if(distant&&p.solarLanceCooldown<=0&&(distant.boss||distance(distant,p)>200)){requestAbility(run,'solarLance',{x:distant.x-p.x,y:distant.y-p.y});return;}
   const target=nearestTarget(run,p,COMBAT.sunbreak.range);if(!target)return;
   const nearby=run.enemies.filter(e=>e.hp>0&&e.warning<=0&&distance(e,p)<200);
   if(p.pulseCooldown<=0&&(nearby.length>=3||nearby.some(e=>e.boss&&distance(e,p)<150))){useAbility(run,'pulse');return;}
@@ -374,17 +407,24 @@ export function update(run,input,dt){
   for(const actor of [p,run.companion,run.sol,...run.enemies,...run.campaign.npcs]){actor.previousX=actor.x;actor.previousY=actor.y;}
   run.time+=dt;run.areaTime+=dt;p.wardClock-=dt;if(p.wardLevel&&p.wardClock<=0){p.shield=22*p.wardLevel;p.shieldTime=8;p.wardClock=18;run.events.push('ward');}if(run.rewards.includes('grove'))heal(run,dt*0.35);run.navClock-=dt;p.idlePhase+=dt;
   if(run.navClock<=0){run.navigation=navigationField(areaObstacles(run),p);run.navClock=0.4;}
-  const previousSlash=p.slash,previousBreak=p.sunbreak;
-  for(const key of ['dash','dashCooldown','pulseCooldown','invulnerable','slash','slashCooldown','cast','sunbreak','sunbreakCooldown','hurt','shieldTime'])p[key]=Math.max(0,p[key]-dt);
+  const previousSlash=p.slash,previousBreak=p.sunbreak,previousLance=p.solarLance;
+  for(const key of ['dash','dashCooldown','pulseCooldown','invulnerable','slash','slashCooldown','cast','sunbreak','sunbreakCooldown','solarLance','solarLanceCooldown','hurt','shieldTime'])p[key]=Math.max(0,p[key]-dt);
   if(p.shieldTime===0)p.shield=0;
   if(run.inputBuffer){const pending=run.inputBuffer;if(useAbility(run,pending.name))applyAim(run,pending.name,pending.aim);else{pending.remaining-=dt;if(pending.remaining<=0)run.inputBuffer=null;}}
   let dx=Number.isFinite(input.x)?input.x:0,dy=Number.isFinite(input.y)?input.y:0;const length=Math.hypot(dx,dy);
-  if(length>0){dx/=length;dy/=length;if(p.dash<=0&&p.slash<=0&&p.sunbreak<=0){p.faceX=dx;p.faceY=dy;}}
+  if(length>0){dx/=length;dy/=length;if(p.dash<=0&&p.slash<=0&&p.sunbreak<=0&&p.solarLance<=0){p.faceX=dx;p.faceY=dy;}}
   if(p.dash>0){dx=p.faceX*4.3;dy=p.faceY*4.3;}
-  const slow=p.sunbreak>0?0.45:p.hurt>0?0.65:1,before={x:p.x,y:p.y};
+  const slow=p.sunbreak>0||p.solarLance>0?0.45:p.hurt>0?0.65:1,before={x:p.x,y:p.y};
   moveBody(p,dx*p.speed*dt*slow,dy*p.speed*dt*slow,areaObstacles(run));p.vx=(p.x-before.x)/dt;p.vy=(p.y-before.y)/dt;p.moving=distance(before,p)>0.01;if(p.moving){const moved=distance(before,p);p.walkPhase+=moved/23;p.travelX=(p.x-before.x)/moved;p.travelY=(p.y-before.y)/moved;p.footClock-=dt;if(p.footClock<=0){run.effects.push({kind:'step',x:p.x,y:p.y+22,age:0,life:0.38});p.footClock=0.16;}}
   if(p.moving){const angle=Math.atan2(p.travelY,p.travelX),delta=Math.atan2(Math.sin(angle-run.formationAngle),Math.cos(angle-run.formationAngle));run.formationAngle+=clamp(delta,-3.5*dt,3.5*dt);}
   if(p.dash>0)run.effects.push({kind:'trail',x:p.x,y:p.y,faceX:p.faceX,age:0,life:0.28});
+  if(previousLance>COMBAT.solarLance.duration-COMBAT.solarLance.impact&&p.solarLance<=COMBAT.solarLance.duration-COMBAT.solarLance.impact){
+    const range=COMBAT.solarLance.range,bx=p.x+p.faceX*range,by=p.y+p.faceY*range,obstacles=areaObstacles(run);
+    let stop=1;for(const o of obstacles){const t=segmentCircleTime(p.x,p.y,bx,by,o.x,o.y,o.radius+4);if(t!==null)stop=Math.min(stop,t);}
+    const tip={x:p.x+(bx-p.x)*stop,y:p.y+(by-p.y)*stop};
+    for(const e of run.enemies)if(e.hp>0&&e.warning<=0&&segmentCircleTime(p.x,p.y,tip.x,tip.y,e.x,e.y,e.radius+24)!==null&&clearPath(p,e,obstacles,0))hit(run,e,80+p.damage*0.8,'sunbreak');
+    run.effects.push({kind:'solar-lance',x:p.x,y:p.y,angle:Math.atan2(p.faceY,p.faceX),reach:range*stop,age:0,life:0.55});run.events.push('solar-lance');
+  }
   for(const [name,previous] of [['slash',previousSlash],['sunbreak',previousBreak]]){
     const attack=COMBAT[name];if(previous>attack.duration-attack.impact&&p[name]<=attack.duration-attack.impact){
       run.effects.push({kind:name,x:p.x,y:p.y,angle:Math.atan2(p.faceY,p.faceX),age:0,life:name==='slash'?0.27:0.45});run.events.push(name);
@@ -403,12 +443,12 @@ export function update(run,input,dt){
   const npcs=activeNpcs(run),retained=run.enemies.filter(e=>e.boss||e.lieutenant||distance(e,p)<1550||npcs.some(n=>distance(e,n)<650));run.stats.retiredEnemies+=run.enemies.length-retained.length;run.enemies=retained;
   updateNpcCombat(run,dt,shoot);
   updateProgression(run,dt);
-  directorStep(run,dt,(boss,role,lieutenant)=>{const created=spawn(run,boss,role,lieutenant);if(created&&boss)run.campaign.bossPhases.push(1);return created;},()=>random(run));
+  directorStep(run,dt,(boss,role,lieutenant,rank)=>{const created=spawn(run,boss,role,lieutenant,rank);if(created&&boss&&rank!=='champion')run.campaign.bossPhases.push(1);return created;},()=>random(run));
   updateEnemies(run,dt);if(run.mode!=='running')return;separateEnemies(run,dt);
   for(const h of run.hazards){if(h.life<=0)continue;h.warning=Math.max(0,h.warning-dt);if(h.warning===0){if(!h.triggered){h.triggered=true;for(const body of [p,...activeNpcs(run)])if(distance(h,body)<h.radius&&distance(h,body)>=(h.inner||0))hurtFriendly(run,body,h.damage);run.effects.push({kind:'impact',x:h.x,y:h.y,age:0,life:0.4});}h.life-=dt;}}
   if(run.mode!=='running')return;run.hazards=run.hazards.filter(h=>h.life>0);
   run.fireClock-=dt;
-  if(run.fireClock<=0&&p.slash<=0&&p.sunbreak<=0&&p.hurt<=0){const target=nearestTarget(run,p,p.fireRange);if(target){shoot(run,p,target,p.damage);if(p.volley)shoot(run,p,target,p.damage*0.55,'hero',false,0.12);run.fireClock=p.fireInterval;if(!p.moving)p.cast=COMBAT.cast.duration;if(!p.moving){const d=distance(target,p)||1;p.faceX=(target.x-p.x)/d;p.faceY=(target.y-p.y)/d;}}}
+  if(run.fireClock<=0&&p.slash<=0&&p.sunbreak<=0&&p.solarLance<=0&&p.hurt<=0){const target=nearestTarget(run,p,p.fireRange);if(target){shoot(run,p,target,p.damage);if(p.volley)shoot(run,p,target,p.damage*0.55,'hero',false,0.12);run.fireClock=p.fireInterval;if(!p.moving)p.cast=COMBAT.cast.duration;if(!p.moving){const d=distance(target,p)||1;p.faceX=(target.x-p.x)/d;p.faceY=(target.y-p.y)/d;}}}
   updateParty(run,dt);updateProjectiles(run,dt);if(run.mode!=='running')return;
   for(const item of run.pickups){item.life-=dt;if(item.life>0&&distance(item,p)<35){heal(run,14);item.life=0;run.events.push('mend');}}
   run.pickups=run.pickups.filter(i=>i.life>0);run.enemies=run.enemies.filter(e=>e.hp>0);ageVisuals(run,dt);

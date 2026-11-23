@@ -35,7 +35,7 @@ export function enemySteering(enemy,player,obstacles,field){
   const gap=distance(enemy,player),side=enemy.steerSide??(enemy.id%2?1:-1);
   let target=player,intent='pursue';
   if(enemy.bossKind){
-    const angle=(enemy.casts||0)*1.9+(enemy.id%3),radius=enemy.bossKind==='root'?175:enemy.bossKind==='bell'?290:340;
+    const angle=(enemy.casts||0)*1.9+(enemy.id%3),radius=enemy.bossKind==='root'?175:enemy.bossKind==='bell'?290:enemy.bossKind==='furnace'?205:enemy.bossKind==='constellation'?365:340;
     target=gap>650?player:{x:player.x+Math.cos(angle)*radius,y:player.y+Math.sin(angle)*radius*0.7};intent='reposition';
   }else if(enemy.type==='skirmisher'&&gap<470){
     const dx=(player.x-enemy.x)/(gap||1),dy=(player.y-enemy.y)/(gap||1);target={x:player.x-dy*side*155,y:player.y+dx*side*155};intent='flank';

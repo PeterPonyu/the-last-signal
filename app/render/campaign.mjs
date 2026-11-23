@@ -17,7 +17,7 @@ export function campaignRoads(run){
  roadsByCampaign.set(run.campaign,roads);return roads;
 }
 export function drawCampaignTerrain(ctx,run,camera,reduced,images){
- const c=run.campaign,def=CAMPAIGN[run.areaIndex],t=reduced?0:run.time;
+ const c=run.campaign,def=CAMPAIGN[run.areaIndex],theme=AREAS[run.areaIndex].detailTheme,t=reduced?0:run.time;
  ctx.save();ctx.lineJoin='round';ctx.lineCap='round';
  for(const road of campaignRoads(run))for(const [width,color]of [[132,'#20232148'],[108,'#cbb98a32'],[3,'#f1d08770']]){
   ctx.lineWidth=width;ctx.strokeStyle=color;ctx.beginPath();road.forEach((p,i)=>i?ctx.lineTo(p.x,p.y+22):ctx.moveTo(p.x,p.y+22));ctx.stroke();
@@ -33,12 +33,12 @@ export function drawCampaignTerrain(ctx,run,camera,reduced,images){
  }
  for(const [index,r] of c.routes.entries()){
   if(!visibleAt(r,camera,420))continue;
-  const warm=r.completed,ground=run.areaIndex===0?(index?'#3e643c66':'#424c3c88'):run.areaIndex===1?'#2b485c77':'#44324f77';
+  const warm=r.completed,ground=run.areaIndex===0?(index?'#3e643c66':'#424c3c88'):['#424c3c88','#2b485c77','#44324f77','#693e2877','#303d6577'][run.areaIndex];
   ctx.fillStyle=ground;ctx.beginPath();ctx.ellipse(r.x,r.y+25,270,190,0,0,Math.PI*2);ctx.fill();
   ctx.strokeStyle=warm?'#f0d28b99':'#a6a28866';ctx.lineWidth=5;ctx.beginPath();ctx.ellipse(r.x,r.y+25,245,172,0,0,Math.PI*2);ctx.stroke();
   for(let i=0;i<12;i++){
    const a=i*Math.PI/6,x=r.x+Math.cos(a)*215,y=r.y+25+Math.sin(a)*148;
-   drawWorldDetail(ctx,images,12+run.areaIndex,x,y+14,28+(i%3)*8,warm?1:0.8);
+   drawWorldDetail(ctx,images,12+theme,x,y+14,28+(i%3)*8,warm?1:0.8);
   }
   ctx.font=canvasFont('label');ctx.textAlign='center';ctx.fillStyle='#eee0b7';ctx.fillText(r.name,r.x,r.y-190);
  }
@@ -61,7 +61,7 @@ export function drawCampaignObjectives(ctx,run,camera,reduced,scale,images){
  const event=c.event;if(!visibleAt(event,camera,230))return;
  ctx.save();ctx.translate(event.x,event.y);glow(ctx,0,-25,130,event.complete?'#ffdc7e33':'#a2d6d722');
  ctx.strokeStyle='#e4c77b';ctx.lineWidth=3;if(!event.complete){ctx.beginPath();ctx.ellipse(0,20,165,105,0,0,Math.PI*2);ctx.stroke();}
- drawWorldDetail(ctx,images,run.areaIndex*4+1,0,22+(reduced?0:Math.sin(t*3)*1.4),run.areaIndex===2?155:135);
+ drawWorldDetail(ctx,images,AREAS[run.areaIndex].detailTheme*4+1,0,22+(reduced?0:Math.sin(t*3)*1.4),AREAS[run.areaIndex].detailTheme===2?155:135);
  if(!event.complete&&distance(p,event)>140)markerLabel(ctx,'scenery',def.event.name,0,-130,scale);
  ctx.font=canvasFont('small',scale);ctx.textAlign='center';ctx.fillStyle='#ffecc2';if(!event.complete)ctx.fillText(Math.floor(event.progress*100)+'% · Stay within the gold circle',0,145);ctx.restore();
 }

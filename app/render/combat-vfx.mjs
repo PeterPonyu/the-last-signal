@@ -3,8 +3,8 @@ import {clamp} from '../game/geometry.mjs';
 import {visibleAt} from './presentation.mjs';
 
 const TAU=Math.PI*2;
-export const ENERGY={gold:'#ffd476',white:'#fff5d3',pearl:'#d8edff',amber:'#ffba65',thorn:'#b2d988',chime:'#8de5e7',eclipse:'#d3acff',danger:'#ffae94'};
-export function enemyEnergy(actor){return [ENERGY.thorn,ENERGY.chime,ENERGY.eclipse][actor.areaIndex||0];}
+export const ENERGY={gold:'#ffd476',white:'#fff5d3',pearl:'#d8edff',amber:'#ffba65',thorn:'#b2d988',chime:'#8de5e7',eclipse:'#d3acff',ember:'#ff9f71',cosmos:'#a7cfff',danger:'#ffae94'};
+export function enemyEnergy(actor){return [ENERGY.thorn,ENERGY.chime,ENERGY.eclipse,ENERGY.ember,ENERGY.cosmos][actor.areaIndex||0];}
 export function actionEnvelope(remaining,duration,impact=0){
   if(!(remaining>0)||!(duration>0))return {charge:0,release:0,progress:1};
   const elapsed=clamp(duration-remaining,0,duration),progress=elapsed/duration;
@@ -42,6 +42,7 @@ export function sparks(ctx,x,y,t,color,count=12,radius=65,angle=0,spread=TAU,red
     ctx.restore();
   }ctx.restore();
 }
+function ringlet(ctx,x,y,r,color){ctx.strokeStyle=color;ctx.lineWidth=1;ctx.beginPath();ctx.arc(x,y,r,0,TAU);ctx.stroke();}
 function arc(ctx,r,start,end,color,width){ctx.strokeStyle=color;ctx.lineWidth=width;ctx.beginPath();ctx.arc(0,0,r,start,end);ctx.stroke();}
 function sigil(ctx,r,rotation,color,kind='sun',reduced=false){
   ctx.save();ctx.rotate(rotation);ctx.strokeStyle=color;ctx.lineWidth=1.8;
@@ -69,25 +70,25 @@ export function drawActorEnergy(ctx,actor,kind,run,reduced,front=false){
   const centerY=actor.y-(kind==='sol'?15:actor.boss?58:36);
   let envelope={charge:0,release:0},motif='sun',active=false;
   if(kind==='hero'){
-    const key=actor.sunbreak>0?'sunbreak':actor.slash>0?'slash':actor.cast>0?'cast':null;
+    const key=actor.solarLance>0?'solarLance':actor.sunbreak>0?'sunbreak':actor.slash>0?'slash':actor.cast>0?'cast':null;
     if(key){envelope=actionEnvelope(actor[key],COMBAT[key].duration,COMBAT[key].impact);active=true;}
   }else if(kind==='companion'){
-    const key=actor.mend>0?'mend':actor.cast>0?'allyCast':null;
-    if(key){envelope=actionEnvelope(key==='mend'?actor.mend:actor.cast,COMBAT[key].duration,COMBAT[key].impact);active=true;motif='petal';}
-  }else if(kind==='sol'&&actor.pounce>0){envelope=actionEnvelope(actor.pounce,0.55,0.33);active=true;}
+    const key=actor.nova>0?'lunarNova':actor.mend>0?'mend':actor.cast>0?'allyCast':null;
+    if(key){envelope=actionEnvelope(key==='lunarNova'?actor.nova:key==='mend'?actor.mend:actor.cast,COMBAT[key].duration,COMBAT[key].impact);active=true;motif='petal';}
+  }else if(kind==='sol'&&(actor.volley>0||actor.pounce>0)){const volley=actor.volley>0;envelope=actionEnvelope(volley?actor.volley:actor.pounce,volley?COMBAT.solVolley.duration:0.55,volley?COMBAT.solVolley.impact:0.33);active=true;}
   else if(enemy&&actor.spell>0){envelope=actionEnvelope(actor.spell,actor.spellDuration,actor.spellDuration*0.65);active=true;motif=actor.areaIndex===0?'thorn':actor.areaIndex===1?'petal':'sun';}
   const {charge,release}=envelope;
   ctx.save();ctx.translate(actor.x,centerY);
   if(!front){
     if(active){
-      const strength=charge*0.7+release,r=actor.boss?80:kind==='hero'&&actor.sunbreak>0?52:kind==='sol'?28:42;
+      const strength=charge*0.7+release,r=actor.boss?80:kind==='hero'&&(actor.sunbreak>0||actor.solarLance>0)?52:kind==='companion'&&actor.nova>0?64:kind==='sol'?28:42;
       if(!reduced)halo(ctx,0,0,r*1.9,color,strength*0.8);
       ctx.globalAlpha=reduced?0.55:0.3+strength*0.6;
       if(charge>0){sigil(ctx,r*(0.6+charge*0.4),reduced?0:charge*0.7,color,motif,reduced);chargeMotes(ctx,charge,r,color,reduced);}
       if(release>0){sigil(ctx,r*(1.4-release*0.4),0,color,motif,reduced);}
     }
     if(actor.ward>0&&!reduced){ctx.globalAlpha=Math.sin(Math.PI*clamp(actor.ward/0.8,0,1));sigil(ctx,kind==='sol'?38:48,0,color,'sun');}
-    if(enemy&&actor.boss&&actor.phase===2){ctx.globalAlpha=reduced?0.35:0.65;sigil(ctx,96,0,color,'sun',reduced);}
+    if(enemy&&actor.boss&&actor.phase===2){ctx.globalAlpha=reduced?0.35:0.65;sigil(ctx,actor.bossRank==='champion'?78:96,0,color,'sun',reduced);}
     if(enemy&&actor.charge>0){
       ctx.rotate(Math.atan2(actor.chargeY,actor.chargeX));ctx.strokeStyle=ENERGY.danger;ctx.lineWidth=3;
       for(const side of [-1,1]){ctx.beginPath();ctx.moveTo(-75,side*22);ctx.quadraticCurveTo(-20,side*38,34,side*12);ctx.stroke();}
@@ -133,6 +134,8 @@ export function drawProjectiles(ctx,shots,camera,reduced,areaIndex=0){
         ctx.strokeStyle=color;ctx.lineWidth=1.5;
         if(areaIndex===1){ctx.beginPath();ctx.ellipse(-5,0,4,10,0,0,TAU);ctx.stroke();}
         else if(areaIndex===2){star(ctx,-8,0,10,color,Math.PI/4);}
+        else if(areaIndex===3){ctx.beginPath();ctx.moveTo(-20,-7);ctx.lineTo(-6,0);ctx.lineTo(-20,7);ctx.stroke();}
+        else if(areaIndex===4){star(ctx,-9,0,11,color,Math.PI/4,0.12);ringlet(ctx,-15,0,5,color);}
         else {for(const side of [-1,1]){ctx.beginPath();ctx.moveTo(-17,side*9);ctx.lineTo(-7,0);ctx.stroke();}}
       }
     }
@@ -144,7 +147,7 @@ export function drawProjectiles(ctx,shots,camera,reduced,areaIndex=0){
 
 export function drawHazardImpact(ctx,h,reduced){
   if(!h.triggered)return;
-  const t=clamp(1-h.life/0.35,0,1),family=['rootfall','rootline','ring'].includes(h.kind)?'thorn':['resonance','fan'].includes(h.kind)?'chime':'eclipse',color=ENERGY[family];
+  const t=clamp(1-h.life/0.35,0,1),family=h.kind==='meteor'?'ember':['rootfall','rootline','ring'].includes(h.kind)?'thorn':['resonance','fan'].includes(h.kind)?'chime':'eclipse',color=ENERGY[family];
   ctx.save();ctx.translate(h.x,h.y);ctx.globalAlpha=(1-t)*(reduced?0.5:0.9);
   // Both the light and the shards are clipped to the actual hazardous band.
   ctx.beginPath();ctx.arc(0,0,h.radius,0,TAU);if(h.inner){ctx.moveTo(h.inner,0);ctx.arc(0,0,h.inner,0,TAU,true);}ctx.clip('evenodd');
@@ -154,7 +157,7 @@ export function drawHazardImpact(ctx,h,reduced){
   for(let i=0;i<count;i++){
     const a=i*TAU/count,r=(h.inner||0)+(h.radius-(h.inner||0))*(0.35+(i%3)*0.19);
     ctx.save();ctx.translate(Math.cos(a)*r,Math.sin(a)*r);ctx.rotate(a);ctx.strokeStyle=color;ctx.fillStyle=color+'55';ctx.lineWidth=2;
-    if(family==='eclipse'){ctx.beginPath();ctx.moveTo(-12,0);ctx.lineTo(0,-(8+(1-t)*18));ctx.lineTo(12,0);ctx.lineTo(0,8);ctx.closePath();ctx.fill();ctx.stroke();}
+    if(family==='eclipse'||family==='ember'){ctx.beginPath();ctx.moveTo(-12,0);ctx.lineTo(0,-(8+(1-t)*18));ctx.lineTo(12,0);ctx.lineTo(0,8);ctx.closePath();ctx.fill();ctx.stroke();}
     else if(family==='chime'){ctx.beginPath();ctx.moveTo(-3,-9);ctx.lineTo(-3,9);ctx.moveTo(3,-5);ctx.lineTo(3,5);ctx.stroke();}
     else {ctx.beginPath();ctx.moveTo(-6,8);ctx.lineTo((1-t)*32,-9);ctx.lineTo(4,-4);ctx.lineTo(-6,8);ctx.fill();ctx.stroke();}
     if(!reduced)grain(ctx,8+t*12,-8,5+i%4,color,a+t);

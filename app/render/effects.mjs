@@ -4,17 +4,22 @@ import {sampleClip} from '../game/animation.mjs';
 import {visibleAt} from './presentation.mjs';
 import {ENERGY,halo,star,sparks,grain} from './combat-vfx.mjs';
 import {drawRadiance} from './raster-details.mjs';
+import {COMBAT} from '../../content/game.mjs';
 
 const TAU=Math.PI*2;
 export function ring(ctx,x,y,r,color,width=2){ctx.strokeStyle=color;ctx.lineWidth=width;ctx.beginPath();ctx.arc(x,y,Math.max(0,r),0,TAU);ctx.stroke();}
-const groundKinds=new Set(['pulse','mend','impact','ward','step','restore','lantern','trail']);
+const groundKinds=new Set(['pulse','mend','impact','ward','step','restore','lantern','trail','solar-lance','lunar-nova']);
 export function effectLayer(kind){return groundKinds.has(kind)?'ground':'front';}
 export function selectEffects(effects,camera,reduced,ground){
   const layer=ground?'ground':'front',limit=reduced?40:96,selected=[];
   for(let i=effects.length-1;i>=0&&selected.length<limit;i--){
     const fx=effects[i];
     if(fx.kind==='impact')continue; // Live hazards own their exact radius and safe center.
-    if(effectLayer(fx.kind)!==layer||!visibleAt(fx,camera,310)||fx.age>=fx.life||fx.life<=0)continue;
+    if(effectLayer(fx.kind)!==layer||fx.age>=fx.life||fx.life<=0)continue;
+    if(fx.kind==='solar-lance'){
+      const endX=fx.x+Math.cos(fx.angle)*fx.reach,endY=fx.y+Math.sin(fx.angle)*fx.reach;
+      if(Math.max(fx.x,endX)<camera.x-70||Math.min(fx.x,endX)>camera.x+camera.width+70||Math.max(fx.y,endY)<camera.y-70||Math.min(fx.y,endY)>camera.y+camera.height+70)continue;
+    }else if(!visibleAt(fx,camera,310))continue;
     if(fx.kind==='trail'&&(reduced||i%3!==0)||fx.kind==='step'&&reduced)continue;
     selected.push(fx);
   }
@@ -51,13 +56,62 @@ function sunbreak(ctx,t,reduced){
     sparks(ctx,38,0,t,ENERGY.gold,16,220,0,0.9);
   }
 }
+function solarLance(ctx,images,fx,t,reduced){
+  const reach=Math.min(COMBAT.solarLance.range,fx.reach),width=COMBAT.solarLance.width;
+  if(reach<=0)return;
+  ctx.translate(fx.x,fx.y+14);ctx.rotate(fx.angle);
+  // Clip the painted ribbon to the collision trace, including a stop at cover.
+  ctx.beginPath();ctx.rect(0,-width*2,reach,width*4);ctx.clip();
+  const gradient=ctx.createLinearGradient(0,0,reach,0);
+  gradient.addColorStop(0,ENERGY.gold+'30');gradient.addColorStop(0.25,ENERGY.gold+'99');gradient.addColorStop(1,ENERGY.pearl+'22');
+  ctx.fillStyle=gradient;ctx.beginPath();ctx.moveTo(0,-width*(1-t));ctx.lineTo(reach,0);ctx.lineTo(0,width*(1-t));ctx.closePath();ctx.fill();
+  ctx.strokeStyle=ENERGY.white;ctx.lineWidth=reduced?3:4+5*(1-t);ctx.beginPath();ctx.moveTo(0,0);ctx.lineTo(reach,0);ctx.stroke();
+  const count=reduced?2:Math.ceil(reach/120);
+  for(let i=0;i<count;i++){
+    const x=(i+0.5)/count*reach;
+    drawRadiance(ctx,images,'comet',x,0,reduced?95:140,t,0,reduced?0.35:0.65);
+    if(!reduced)for(const side of [-1,1])grain(ctx,x,side*width*(0.3+0.6*t),4+2*(1-t),ENERGY.gold,side*t);
+  }
+  if(!reduced)drawRadiance(ctx,images,'contact',reach-12,0,105,t,0,0.7);
+}
+function lunarNova(ctx,images,fx,t,reduced){
+  const radius=COMBAT.lunarNova.range,r=radius*Math.sqrt(t);
+  ctx.translate(fx.x,fx.y+22);ctx.beginPath();ctx.arc(0,0,radius,0,TAU);ctx.clip();
+  drawRadiance(ctx,images,'mend',0,0,radius*2,t,0,reduced?0.25:0.48);
+  ring(ctx,0,0,r,ENERGY.pearl,reduced?3:5);
+  if(!reduced){
+    ring(ctx,0,0,r*0.8,ENERGY.white,1.5);
+    for(let i=0;i<12;i++){
+      const angle=i*TAU/12,x=Math.cos(angle)*r,y=Math.sin(angle)*r;
+      drawRadiance(ctx,images,'contact',x,y,45,t,angle,0.55);
+    }
+  }
+}
+function solVolley(ctx,images,fx,t,reduced){
+  ctx.translate(fx.x,fx.y-16);ctx.rotate(fx.angle||0);
+  for(const side of [-1,0,1]){
+    ctx.save();ctx.rotate(side*0.3);
+    const length=35+60*t;
+    drawRadiance(ctx,images,'comet',length,0,reduced?65:92,t,0,reduced?0.45:0.8);
+    ctx.strokeStyle=ENERGY.amber;ctx.lineWidth=reduced?1.5:3;
+    ctx.beginPath();ctx.moveTo(8,0);ctx.lineTo(length,0);ctx.stroke();
+    if(!reduced)grain(ctx,length,0,5*(1-t)+2,ENERGY.white,t);
+    ctx.restore();
+  }
+}
 export function drawEffects(ctx,images,run,camera,reduced,ground,uiScale=1){
   const selected=selectEffects(run.effects,camera,reduced,ground),secondary=selected.filter(fx=>fx.kind==='hit'||fx.kind==='cover').length;
   const secondaryOpacity=Math.min(1,Math.sqrt(18/Math.max(1,secondary)));
   for(const fx of selected){
     const t=Math.max(0,fx.age/fx.life);ctx.save();ctx.globalAlpha=1-t;ctx.lineCap='round';
     if(fx.kind==='hit'||fx.kind==='cover')ctx.globalAlpha*=secondaryOpacity;
-    if(['pulse','restore','lantern'].includes(fx.kind)){
+    if(fx.kind==='solar-lance'){
+      solarLance(ctx,images,fx,t,reduced);
+    }else if(fx.kind==='lunar-nova'){
+      lunarNova(ctx,images,fx,t,reduced);
+    }else if(fx.kind==='sol-volley'){
+      solVolley(ctx,images,fx,t,reduced);
+    }else if(['pulse','restore','lantern'].includes(fx.kind)){
       const radius=fx.kind==='restore'?230:fx.kind==='lantern'?170:210,r=radius*Math.sqrt(t);
       ctx.translate(fx.x,fx.y+22);ring(ctx,0,0,r,ENERGY.white,reduced?3:5*(1-t)+1);
       corona(ctx,r,t,ENERGY.gold,reduced);

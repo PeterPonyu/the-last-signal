@@ -2,6 +2,7 @@ import {drawCast} from './cast.mjs';
 import {drawWorldDetail} from './raster-details.mjs';
 import {canvasFont} from './typography.mjs';
 import {markerLabel} from './guidance.mjs';
+import {AREAS} from '../../content/game.mjs';
 import {JOURNEY} from '../../content/journey.mjs';
 import {nearbyInteraction,gatewayPrompt} from '../game/journey.mjs';
 import {visibleAt} from './presentation.mjs';
@@ -18,7 +19,7 @@ export function landmarkMotion(kind,time,reduced=false){
 export function drawLandmark(ctx,run,camera,reduced,images){
   const landmark=JOURNEY[run.areaIndex].landmark,m=landmarkMotion(landmark.kind,run.time,reduced);
   if(!visibleAt(landmark,camera,240))return;
-  const index=run.areaIndex*4;
+  const index=AREAS[run.areaIndex].detailTheme*4;
   drawWorldDetail(ctx,images,index,landmark.x,landmark.y+25,190,1,landmark.kind==='bell'?m.swing*0.25:0);
   if(landmark.kind==='clock'){
     ctx.save();ctx.translate(landmark.x,landmark.y-80);ctx.strokeStyle='#ffe4a0';ctx.lineWidth=3;
@@ -48,7 +49,7 @@ export function drawGateway(ctx,run,camera,reduced,guidance=true,scale=1,images)
   const gate=JOURNEY[run.areaIndex].exit;if(!visibleAt(gate,camera,230))return;
   const open=run.gateOpen,showLabels=open||!run.bossSpawned,t=reduced?0:run.time;
   ctx.save();ctx.translate(gate.x,gate.y);glow(ctx,0,-40,150,open?'#ffcd6a66':'#8cb5ac22');
-  drawWorldDetail(ctx,images,open?run.areaIndex:run.areaIndex*4+2,0,28,200,1,0,open?'openGate':'worldDetails');
+  drawWorldDetail(ctx,images,open?AREAS[run.areaIndex].detailTheme:AREAS[run.areaIndex].detailTheme*4+2,0,28,200,1,0,open?'openGate':'worldDetails');
   if(open){
     ctx.fillStyle='#e4bc6024';ctx.beginPath();ctx.ellipse(0,-45,59,86,0,0,Math.PI*2);ctx.fill();
     for(let i=0;i<12;i++){const y=15-((t*23+i*13)%150);ctx.globalAlpha=0.25+0.5*Math.sin((15-y)/150*Math.PI);ctx.fillStyle='#ffe3a1';ctx.fillRect(Math.sin(i*8.3)*48,y,3,5);}ctx.globalAlpha=1;
@@ -57,7 +58,7 @@ export function drawGateway(ctx,run,camera,reduced,guidance=true,scale=1,images)
   if(showLabels){
     label(ctx,gate.name,0,-172,'label');
     markerLabel(ctx,'gate',gatewayPrompt(run),0,62,scale);
-    if(guidance&&!open)label(ctx,'Resolve the gathering, then defeat the Warden',0,106,'small');
+    if(guidance&&!open)label(ctx,'Defeat the champion, resolve the gathering, then face the Warden',0,106,'small');
   }
   ctx.restore();
 }
