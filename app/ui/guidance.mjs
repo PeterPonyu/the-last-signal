@@ -1,5 +1,6 @@
 import {JOURNEY} from '../../content/journey.mjs';
 import {AREAS} from '../../content/game.mjs';
+import {CAMPAIGN,campaignMilestones} from '../../content/campaign.mjs';
 import {distance} from '../game/geometry.mjs';
 
 const key='last-signal-guidance-v1';
@@ -14,22 +15,71 @@ export function readGuidance(storage){
 export function saveGuidance(storage,value){try{storage.setItem(key,JSON.stringify(value));return true;}catch{return false;}}
 export function guidanceEnabled(value){return value.mode==='on'||value.mode==='auto'&&value.completed<INTRO_RUNS;}
 export function completeGuidedRun(value){return {...value,completed:Math.min(999,value.completed+1)};}
+
+// Every map runs the same five steps (run.campaign.stage 0..4); stage 5 is the open gate.
+export const STEP_NAMES=['Free the Hollow','Choose a road','The gathering','Counterattack','The Warden','Gate open'];
+// One line per champion: how to break it, then what its second phase adds.
+export const CHAMPION_HINTS={
+  'briar-regent':'Break its guard, then dodge root lines. Phase 2: ring and leading marks.',
+  'march-without-end':'Sidestep its rush; stand inside resonance rings. Phase 2: chasing and leading marks.',
+  'nameless-judge':'Break its guard; leave the cross diagonally. Phase 2: crown burst, leading marks.',
+  'ash-marshal':'Break its guard, sidestep the rush, get behind the fan. Phase 2: leading marks.',
+  'horizon-eater':'Sidestep the rush; outrun its afterimages. Phase 2: leading and chasing marks.'
+};
+
+// The step a map is on and the progress of its single next action, in the same
+// priority order as the objective line (src/game/progression.mjs campaignObjective).
+export function campaignStep(run){
+  const c=run.campaign,stage=run.gateOpen?5:Math.min(4,c.stage);
+  const milestones=campaignMilestones(run.areaIndex,run.difficulty),next=milestones.find(n=>n>c.defeats)||milestones.at(-1);
+  const kills={kind:'kills',value:Math.min(c.defeats,next),max:next,missing:Math.max(0,next-c.defeats)};
+  const route=c.routes.find(r=>r.id===c.choice);
+  let progress=null;
+  if(run.gateOpen||c.stage>0&&!route)progress=null;
+  else if(c.stage===0)progress=kills;
+  else if(!route.completed)progress=route.status==='active'?{kind:'percent',value:route.progress,max:1}:null;
+  else if(run.enemies.some(e=>e.boss&&e.hp>0))progress=null;
+  else if(c.stage>=2&&!c.event.complete)progress={kind:'percent',value:c.event.progress,max:1};
+  else if(run.bossSpawned||c.stage>=3&&!c.lieutenantDefeated)progress=null;
+  else progress=kills;
+  return {stage,number:Math.min(stage+1,5),name:STEP_NAMES[stage],progress};
+}
+export const stepLabel=step=>step.stage<5?'Step '+step.number+'/5 · '+step.name:step.name;
+
+// A Warden guard as the boss bar shows it: up, enraged (up for too long), exposed
+// (broken: the bar drains) or down (regrowing, empty). Fields are read defensively.
+export function guardState(boss){
+  const max=Number(boss?.guardMax)||0;if(max<=0)return null;
+  const clamp=value=>Math.max(0,Math.min(1,Number(value)||0));
+  if(boss.exposed>0)return {state:'exposed',fill:clamp(boss.exposed/(boss.exposedFor||boss.exposed))};
+  if(boss.guardUp)return {state:boss.enraged?'enraged':'up',fill:clamp(boss.guardHp/max)};
+  return {state:'down',fill:0};
+}
+
+// Inside the struck band of a warning (a ring's hollow center is safe).
+const struck=(h,p)=>{const d=distance(h,p);return d<h.radius&&!(h.inner>0&&d<h.inner);};
 export function guidanceStep(run){
-  const story=JOURNEY[run.areaIndex];
-  if(run.gateOpen)return {symbol:'gate',title:run.areaIndex===AREAS.length-1?'Release the dawn':'Take the open road',text:'Follow the doorway marker to '+story.exit.name+'. Walk close, then press F or tap '+(run.areaIndex===AREAS.length-1?'Release the dawn to finish your journey.':'Enter gateway to travel to '+story.exit.destination+'.')};
-  if(run.hazards.some(h=>h.warning>0&&distance(h,run.player)<h.radius+150))return {symbol:'danger',title:'Leave the marked ground',text:'Striped ground marks an incoming attack. Move outside the band before it strikes. An unmarked center is safe from a ring attack.'};
-  if(run.lanterns.some(l=>!l.lit&&distance(l,run.player)<145))return {symbol:'lantern',title:'Strike a sun lantern',text:'The diamond and blade mark a combat tool. Aim Sunblade at the lantern, or use a power nearby, to release one cleansing burst.'};
+  const story=JOURNEY[run.areaIndex],last=run.areaIndex===AREAS.length-1,c=run.campaign,step=campaignStep(run),kicker=stepLabel(step);
+  if(run.gateOpen)return {symbol:'gate',kicker:STEP_NAMES[5],title:last?'Release the dawn · F':'Enter the gate · F',text:'Walk to '+story.exit.name+(last?' to finish your journey.':' to travel to '+story.exit.destination+'.')};
+  if(run.hazards.some(h=>h.warning>0&&struck(h,run.player)))return {symbol:'danger',kicker:'Danger',title:'Leave the marked ground',text:'Get out before the fill reaches the edge. Gaps and ring centers are safe.'};
+  if(run.lanterns.some(l=>!l.lit&&distance(l,run.player)<145))return {symbol:'lantern',kicker:'Tool',title:'Strike the sun lantern',text:'Hit it with Sunblade or a power for one cleansing burst.'};
   const boss=run.enemies.find(e=>e.boss&&e.hp>0);
-  if(boss?.bossRank==='champion')return {symbol:'boss',title:'Defeat '+boss.bossName,text:'This roaming champion contests the gathering. Read its warnings, strike between casts, and defeat both phases. The final Warden still waits beyond the counterattack.'};
-  if(run.bossSpawned)return {symbol:'boss',title:'Face '+AREAS[run.areaIndex].boss,text:'The crown marks the Warden. Avoid striped warnings and strike between attacks. Defeating the Warden opens your exit.'};
-  const c=run.campaign;
-  if(c.stage===0)return {symbol:'boss',title:'Free the Hollow',text:'Defeats fill the liberation bar. At the first milestone, two roads open. Story messages appear above the battlefield; conversations are optional.'};
-  if(!c.choice)return {symbol:'guide',title:'Choose Road A or Road B',text:'The minimap marks two different encounters. Follow either road to its keeper and press F. You can still help the other keeper later for an extra benefit.'};
+  if(boss?.bossRank==='champion')return {symbol:'boss',kicker:'Champion',title:boss.bossName,text:CHAMPION_HINTS[CAMPAIGN[run.areaIndex].champion.id]};
+  if(run.bossSpawned){
+    const guard=guardState(boss);
+    if(guard?.state==='exposed')return {symbol:'boss',kicker:'Warden',title:'Strike now',text:'Its guard is broken: +50% damage for a few seconds.'};
+    if(guard?.state==='enraged')return {symbol:'boss',kicker:'Warden',title:'Break the guard now',text:'Enraged: faster attacks and harder hits until its guard breaks.'};
+    if(guard?.state==='up')return {symbol:'boss',kicker:'Warden',title:'Break the guard',text:'Use Sunblade, Sunbreak, Solar Lance or Dawn Pulse. Break it quickly or it enrages.'};
+    return {symbol:'boss',kicker:'Warden',title:AREAS[run.areaIndex].boss,text:story.bossHint};
+  }
+  if(c.stage===0)return {symbol:'boss',kicker:'Step '+step.number+'/5',title:'Free the Hollow',text:'Every Hollow you defeat is freed. Free '+campaignMilestones(run.areaIndex,run.difficulty)[0]+' to open two roads.'};
+  if(!c.choice)return {symbol:'guide',kicker,title:'Road A or B',text:'Each road has a keeper to protect. You can do the other later.'};
   const route=c.routes.find(r=>r.id===c.choice);
   if(!route.completed){
-    if(route.status==='recovering'||route.status==='retry')return {symbol:'guide',title:'Recover your keeper',text:'The captured keeper returns to their starting road after three seconds. Go back and press F to restart that mission. Your other progress and gifts remain.'};
-    return {symbol:'shield',title:'Protect your keeper',text:(route.kind==='repair'?'Stay near the work circle.':'Stay close as the keeper walks to the gathering.')+' Keepers fight, dodge warnings, and can be defeated. E shields them nearby; Dawnweaver heals the most wounded ally. Attack raiders to draw their attention.'};
+    if(route.status==='recovering'||route.status==='retry')return {symbol:'guide',kicker,title:'Recover your keeper',text:'Captured keepers go back to their road. Restart the mission there.'};
+    return {symbol:'shield',kicker,title:'Protect your keeper',text:(route.kind==='repair'?'Stay inside the work circle.':'Stay close while they walk.')+' Dawn Pulse shields nearby keepers.'};
   }
-  if(!c.event.complete&&c.stage>=2)return {symbol:'scenery',title:'Help the gathering',text:'Stay inside the gold circle around the moving mechanism or orrery. Defeats continue to reveal the counterattack and its keeper.'};
-  return {symbol:'boss',title:'Break the counterattack',text:'Defeat the roaming champion, free more Hollow and defeat the marked keeper. The mobile Warden arrives when the district’s final milestone is reached.'};
+  if(c.stage>=2&&!c.event.complete)return {symbol:'scenery',kicker,title:'Hold the gold circle',text:'Stay in the gold circle. It only advances while you are near.'};
+  if(c.stage>=3&&!c.lieutenantDefeated)return {symbol:'boss',kicker,title:'Defeat the leader',text:'Defeat the counterattack leader. Then the Warden arrives.'};
+  return {symbol:'boss',kicker,title:'Free the Hollow',text:'Free more Hollow to start the next step. The top bar counts them.'};
 }

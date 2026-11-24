@@ -71,16 +71,26 @@ body.playing{touch-action:none}
 .icon-button{flex:none;width:40px;height:40px;display:grid;place-items:center;border:1px solid var(--line);border-radius:9px}
 .icon-button:hover{border-color:#c9a86c}
 .icon-button svg{width:20px;height:20px;fill:none;stroke:currentColor;stroke-width:2;stroke-linecap:round;stroke-linejoin:round}
-.where{flex:1 1 auto;min-width:0;display:flex;align-items:baseline;gap:12px;overflow:hidden}
+/* Step N/5 + name over five pips, then the one next action and its progress. */
+.stepper{flex:none;display:grid;gap:5px;min-width:0;max-width:46%}
+.step-text{display:flex;align-items:baseline;gap:8px;min-width:0;white-space:nowrap}
+.step-no{flex:none;color:var(--gold)}
+.step-no:empty{display:none}
+.stage-name{min-width:0;overflow:hidden;text-overflow:ellipsis;color:var(--ivory)}
+.pips{display:grid;grid-template-columns:repeat(5,minmax(0,1fr));gap:3px}
+.pips i{height:3px;border-radius:2px;background:#ffffff1c}
+.pips i.done{background:#b8964f}
+.pips i.now{background:var(--gold);box-shadow:0 0 6px #edc5747a}
+.next{flex:1 1 auto;min-width:0;display:flex;align-items:center;gap:12px;padding-left:clamp(10px,1.4vw,18px);border-left:1px solid #8a714d40}
+.objective{flex:0 1 auto;min-width:0;overflow:hidden;white-space:nowrap;text-overflow:ellipsis}
 .area-label{flex:none;color:var(--gold);white-space:nowrap}
-.objective{min-width:0;overflow:hidden;display:-webkit-box;-webkit-box-orient:vertical;-webkit-line-clamp:2;line-clamp:2}
-.campaign{flex:0 1 300px;min-width:130px;display:flex;align-items:center;gap:8px;color:#e3d3ac}
-.campaign .stage-name{white-space:nowrap}
+.campaign{flex:0 1 220px;min-width:64px;display:flex;align-items:center;gap:8px;color:#e3d3ac}
 .campaign progress{flex:1 1 60px;min-width:36px;height:6px;border:0;border-radius:6px;background:#35382e;accent-color:#dfbe76}
 .campaign progress::-webkit-progress-bar{background:#35382e;border-radius:6px}
 .campaign progress::-webkit-progress-value{background:#dfbe76;border-radius:6px}
 .campaign progress::-moz-progress-bar{background:#dfbe76;border-radius:6px}
 .campaign .count{white-space:nowrap;color:var(--muted)}
+.campaign .count:empty{display:none}
 .maps{flex:none;display:flex;gap:4px;list-style:none;margin:0;padding:0}
 .maps li{width:24px;height:24px;display:grid;place-items:center;border:1px solid #ffffff20;border-radius:50%;color:#8d8778}
 .maps li.current{border-color:var(--gold);color:var(--gold);box-shadow:0 0 0 2px #edc57422}
@@ -121,7 +131,20 @@ body.playing{touch-action:none}
 
 .boss{position:absolute;left:50%;transform:translateX(-50%);bottom:12px;width:min(440px,56%);padding:7px 12px;text-align:center;pointer-events:none;z-index:2}
 .boss .bar span{background:linear-gradient(90deg,#6fa39b,#c7e5de)}
-.rotate-hint{position:absolute;left:50%;top:50%;transform:translate(-50%,-50%);margin:0;padding:8px 14px;background:var(--panel);border:1px solid var(--panel-line);border-radius:999px;white-space:nowrap;z-index:5;pointer-events:none}
+/* Warden guard: steel while up, danger red when enraged, gold draining while exposed, empty while it regrows. */
+.guard{display:grid;grid-template-columns:auto minmax(0,1fr);align-items:center;gap:8px;margin-top:5px;text-align:left}
+.guard>span{white-space:nowrap;color:#cfe3ee}
+.guard .bar{height:4px;margin:0}
+.boss .guard .bar span{background:linear-gradient(90deg,#7fa6bf,#e8f6ff)}
+.guard[data-state=enraged]>span{color:#ffb09a}
+.boss .guard[data-state=enraged] .bar span{background:linear-gradient(90deg,#ff5a3c,#ffb09a);box-shadow:0 0 8px #ff5a3c99}
+.boss:has(.guard[data-state=enraged]:not([hidden])){border-color:#ff5a3c80;box-shadow:0 6px 24px #0006,0 0 0 1px #3a1414}
+.guard[data-state=exposed]>span{color:#ffe7a6}
+.boss .guard[data-state=exposed] .bar span{background:linear-gradient(90deg,#ffb347,#fff0b0)}
+.guard[data-state=down]>span{color:var(--muted)}
+@media (prefers-reduced-motion:no-preference){.boss .guard[data-state=exposed] .bar span{animation:guard-pulse .5s ease-in-out infinite alternate}}
+@keyframes guard-pulse{from{opacity:.7}to{opacity:1}}
+.toast.rotate-hint{justify-self:center;max-width:100%;padding:6px 14px;border-radius:999px;text-align:center}
 
 /* Narrow play areas: notices under the HUD row, guide folded at the bottom left. */
 @container stage (max-width:760px){
@@ -200,14 +223,16 @@ body.input-touch.portrait .touch .pad{bottom:6px}
 @media (pointer:coarse) and (min-width:900px) and (min-height:700px){:root{--u:1.12}}
 
 /* Narrow top bars: keep the essentials on one or two short lines. */
-@media (max-width:980px){.maps{display:none}}
+@media (max-width:980px){.maps,.area-label{display:none}}
+/* Phones upright: the step and its pips fill the first row; the next action gets its own row. */
 @media (max-width:640px) and (orientation:portrait){
-  .topbar{flex-wrap:wrap;row-gap:4px;padding-top:5px;padding-bottom:6px}
-  .where{flex-basis:calc(100% - 100px);order:1}
+  .topbar{flex-wrap:wrap;row-gap:6px;padding-top:5px;padding-bottom:7px}
   #pause-button{order:0}#fullscreen-button{order:2}
-  .campaign{order:3;flex:1 1 100%;min-width:0}
+  .stepper{order:1;flex:1 1 0;max-width:none}
+  .next{order:3;flex:1 1 100%;padding-left:2px;border-left:0}
+  .campaign{flex:1 1 110px;max-width:170px;margin-left:auto}
 }
-@media (max-height:430px){.topbar{gap:8px}.icon-button{width:34px;height:34px}.where{gap:8px}.objective{display:block;white-space:nowrap;text-overflow:ellipsis}}
+@media (max-height:430px){.topbar{gap:8px}.icon-button{width:34px;height:34px}.stepper{gap:4px}.next{gap:8px;padding-left:10px}}
 
 /* ---------- Dialogs: sized to the viewport ---------- */
 dialog{color:var(--ivory);background:#1b1915;border:1px solid #b7986355;border-radius:14px;padding:clamp(16px,3.4vmin,32px);width:min(640px,calc(100vw - 24px));max-width:none;max-height:calc(100dvh - 24px);overflow:auto;overscroll-behavior:contain;box-shadow:0 30px 100px #000a}
@@ -249,6 +274,17 @@ dialog .close{position:absolute;right:10px;top:8px;width:40px;height:40px;color:
 .controls-table td:first-child{color:#e8dcc0}
 .mini-icon{display:inline-block;width:20px;height:20px;vertical-align:middle;color:var(--gold)}.mini-icon svg{display:block;width:100%;height:100%}
 .notes{margin:0;padding-left:18px;display:grid;gap:6px}
+.steps-intro{margin:14px 0 0}
+.step-list{list-style:none;counter-reset:step;display:flex;flex-wrap:wrap;gap:6px;padding:0;margin:8px 0 14px}
+.step-list li{counter-increment:step;display:flex;align-items:center;gap:6px;min-height:28px;padding:2px 11px 2px 3px;border:1px solid var(--line);border-radius:999px;color:#e8dcc0}
+.step-list li::before{content:counter(step);display:grid;place-items:center;width:22px;height:22px;border-radius:50%;background:#edc57424;color:var(--gold)}
+@media (max-width:560px),(max-height:480px){
+  .step-list{gap:4px;margin:6px 0 10px}
+  .step-list li{min-height:24px;padding:1px 8px 1px 2px;gap:4px}
+  .step-list li::before{width:18px;height:18px}
+}
+.pause-step{display:grid;gap:2px;margin:0 0 4px}
+.pause-step strong{color:var(--gold)}
 .character-panel{display:grid;grid-template-columns:110px minmax(0,1fr);gap:14px;align-items:center;padding:10px 0;border-top:1px solid var(--line)}
 .character-panel:first-of-type{border-top:0}
 .character-panel img{width:110px;height:130px;object-fit:contain}
@@ -266,7 +302,7 @@ dialog .close{position:absolute;right:10px;top:8px;width:40px;height:40px;color:
 .symbol-card h3{margin:0 0 2px}
 .symbol-card p{margin:0}
 .symbol-illustration{width:44px;height:44px;padding:8px;background:#101916;border:1px solid #6e674f;border-radius:8px}
-.symbol-danger{background:repeating-linear-gradient(135deg,#37201c 0 7px,#562c22 7px 10px)}
+.symbol-danger{background:radial-gradient(circle,#ff5a3c4d,#3a1414 72%);border-color:#ff5a3c66}
 @media (max-width:560px){
   .difficulty-options,.upgrade-row{grid-template-columns:minmax(0,1fr)}
   .result-grid{grid-template-columns:repeat(2,minmax(0,1fr))}

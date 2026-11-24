@@ -1,14 +1,16 @@
 import {CAMPAIGN,campaignMilestones} from '../../content/campaign.mjs';
 import {JOURNEY} from '../../content/journey.mjs';
 import {AREAS} from '../../content/game.mjs';
-import {distance,clamp} from '../game/geometry.mjs';
+import {distance} from '../game/geometry.mjs';
 import {visibleAt} from './presentation.mjs';
-import {markerLabel} from './guidance.mjs';
-import {drawSymbol} from './symbols.mjs';
-import {canvasFont} from './typography.mjs';
 import {glow} from './world.mjs';
 import {drawWorldDetail} from './raster-details.mjs';
+import {drawDecal,caption,TONES,GROUND} from './decal.mjs';
 
+// World-true radii from the simulation: F reaches a site within 120, a repair holds within 135,
+// an escort keeper walks while you stay within 240, a gathering holds within 155 and a convoy
+// rolls while you stay within 230.
+export const ZONES={site:120,repair:135,escort:240,gathering:155,convoy:230};
 const roadsByCampaign=new WeakMap();
 export function campaignRoads(run){
  if(roadsByCampaign.has(run.campaign))return roadsByCampaign.get(run.campaign);
@@ -17,10 +19,11 @@ export function campaignRoads(run){
  roadsByCampaign.set(run.campaign,roads);return roads;
 }
 export function drawCampaignTerrain(ctx,run,camera,reduced,images){
- const c=run.campaign,def=CAMPAIGN[run.areaIndex],theme=AREAS[run.areaIndex].detailTheme,t=reduced?0:run.time;
+ const c=run.campaign,theme=AREAS[run.areaIndex].detailTheme,t=reduced?0:run.time;
  ctx.save();ctx.lineJoin='round';ctx.lineCap='round';
- for(const road of campaignRoads(run))for(const [width,color]of [[132,'#20232148'],[108,'#cbb98a32'],[3,'#f1d08770']]){
-  ctx.lineWidth=width;ctx.strokeStyle=color;ctx.beginPath();road.forEach((p,i)=>i?ctx.lineTo(p.x,p.y+22):ctx.moveTo(p.x,p.y+22));ctx.stroke();
+ // Worn roads: feathered edges instead of hard bands, no painted centre line.
+ for(const road of campaignRoads(run))for(const [width,color]of [[144,'#181a181a'],[128,'#1d201e2a'],[112,'#cbb98a1c'],[96,'#d8c69424']]){
+  ctx.lineWidth=width;ctx.strokeStyle=color;ctx.beginPath();road.forEach((p,i)=>i?ctx.lineTo(p.x,p.y+GROUND):ctx.moveTo(p.x,p.y+GROUND));ctx.stroke();
  }
  if(run.areaIndex===0){
   ctx.lineWidth=26;ctx.strokeStyle='#284e4d77';ctx.beginPath();ctx.moveTo(1260,180);ctx.bezierCurveTo(1100,700,1540,1500,1260,2230);ctx.stroke();
@@ -31,37 +34,51 @@ export function drawCampaignTerrain(ctx,run,camera,reduced,images){
   drawWorldDetail(ctx,images,7,0,78,156);
   ctx.restore();ctx.save();
  }
- for(const [index,r] of c.routes.entries()){
+ // Each road site is framed by its map's plants on a true circle just outside the zone rim.
+ for(const r of c.routes){
   if(!visibleAt(r,camera,420))continue;
-  const warm=r.completed,ground=run.areaIndex===0?(index?'#3e643c66':'#424c3c88'):['#424c3c88','#2b485c77','#44324f77','#693e2877','#303d6577'][run.areaIndex];
-  ctx.fillStyle=ground;ctx.beginPath();ctx.ellipse(r.x,r.y+25,270,190,0,0,Math.PI*2);ctx.fill();
-  ctx.strokeStyle=warm?'#f0d28b99':'#a6a28866';ctx.lineWidth=5;ctx.beginPath();ctx.ellipse(r.x,r.y+25,245,172,0,0,Math.PI*2);ctx.stroke();
-  for(let i=0;i<12;i++){
-   const a=i*Math.PI/6,x=r.x+Math.cos(a)*215,y=r.y+25+Math.sin(a)*148;
-   drawWorldDetail(ctx,images,12+theme,x,y+14,28+(i%3)*8,warm?1:0.8);
-  }
-  ctx.font=canvasFont('label');ctx.textAlign='center';ctx.fillStyle='#eee0b7';ctx.fillText(r.name,r.x,r.y-190);
+  for(let i=0;i<12;i++){const a=i*Math.PI/6+0.26,x=r.x+Math.cos(a)*172,y=r.y+GROUND+Math.sin(a)*172;drawWorldDetail(ctx,images,12+theme,x,y+14,26+(i%3)*7,r.completed?1:0.8);}
  }
  // Barricades are removed, never inserted around living actors.
  for(const b of c.barriers)if(visibleAt(b,camera))drawWorldDetail(ctx,images,15,b.x,b.y+22,120);
  ctx.restore();
 }
-export function drawCampaignObjectives(ctx,run,camera,reduced,scale,images){
+// Captions go to `labels` when given (drawn above actors by the renderer), else straight away.
+// `above` is where the caption moves when a body stands on its usual spot; prompts are kept.
+function say(ctx,labels,text,x,y,tone,scale,above,keep=false){if(labels)labels.push({text,x,y,above,tone,keep});else caption(ctx,text,x,y,tone,scale);}
+export function routeZone(run,r,index){
+ const c=run.campaign,road='Road '+(index?'B':'A'),npc=c.npcs.find(n=>n.id===r.npc);
+ if(r.completed)return {radius:ZONES.site,tone:'objective',strength:0.55,text:'Restored'};
+ if(r.status==='locked'){const need=Math.max(0,campaignMilestones(run.areaIndex,run.difficulty)[0]-c.defeats);return {radius:ZONES.site,tone:'locked',strength:0.75,text:need>0?'Free '+need+' more':road};}
+ if(r.status==='recovering')return {radius:ZONES.site,tone:'locked',strength:0.75,text:'Keeper returning'};
+ if(r.status==='retry')return {radius:ZONES.site,tone:'objective',icon:'guide',glint:true,text:'Restart mission · F'};
+ if(r.status==='active'&&r.kind==='repair')return {radius:ZONES.repair,tone:'objective',icon:'guide',glint:true,progress:r.progress,text:'Hold · '+Math.floor(r.progress*100)+'%'};
+ if(r.status==='active')return {radius:ZONES.site,tone:'objective',strength:0.5,text:null,escort:npc};
+ return {radius:ZONES.site,tone:'objective',icon:'guide',glint:true,text:road+' · F'};
+}
+export function drawCampaignObjectives(ctx,run,camera,reduced,scale,images,labels=null){
  const c=run.campaign,def=CAMPAIGN[run.areaIndex],p=run.player,t=reduced?0:run.time;
  for(const [index,r]of c.routes.entries()){
-  if(!visibleAt(r,camera,180))continue;
-  const active=r.status!=='locked',near=distance(p,r)<150;
-  ctx.save();ctx.strokeStyle=r.completed?'#f4d492':active?r.color:'#8a8e7b66';ctx.lineWidth=3;ctx.setLineDash(active?[]:[8,10]);ctx.beginPath();ctx.ellipse(r.x,r.y+24,133,93,0,0,Math.PI*2);ctx.stroke();ctx.setLineDash([]);
-  if(r.progress>0){ctx.lineWidth=7;ctx.beginPath();ctx.arc(r.x,r.y,115,-Math.PI/2,-Math.PI/2+r.progress*Math.PI*2);ctx.stroke();}
-  drawSymbol(ctx,r.completed?'gate':'guide',r.x-75,r.y+42,25);
-  if(near||!c.choice)markerLabel(ctx,'guide',r.completed?'Road '+(index?'B':'A')+' · Restored':active?(r.status==='recovering'?'Keeper returning · Mission reset':r.status==='retry'?'Restart mission · F':r.status==='active'?r.verb+' · '+Math.floor(r.progress*100)+'%':'Road '+(index?'B':'A')+' · '+(r.kind==='repair'?'Repair':'Rescue')+' · F'):'Free '+campaignMilestones(run.areaIndex,run.difficulty)[0]+' Hollow to open this road',r.x,r.y+150,scale);
-  ctx.restore();
+  const zone=routeZone(run,r,index),escort=zone.escort;
+  if(escort&&escort.state==='active'&&visibleAt(escort,camera,ZONES.escort)){
+   // The escort keeper only walks while you stay inside this circle.
+   const ex=escort.x,ey=escort.y+GROUND;
+   drawDecal(ctx,ex,ey,ZONES.escort,TONES.guide,{strength:0.7,progress:r.progress,reduced,time:t,scale});
+   say(ctx,labels,'Escort · '+Math.floor(r.progress*100)+'%',ex,ey+ZONES.escort+16*scale,TONES.guide,scale,ey-ZONES.escort-16*scale);
+  }
+  if(!visibleAt(r,camera,zone.radius+60))continue;
+  const x=r.x,y=r.y+GROUND;
+  drawDecal(ctx,x,y,zone.radius,TONES[zone.tone],{strength:zone.strength??1,progress:zone.progress??null,icon:zone.icon,glint:zone.glint,reduced,time:t,scale});
+  if(zone.text&&(distance(p,r)<zone.radius+110||!c.choice))say(ctx,labels,zone.text,x,y+zone.radius+(zone.icon?30:16)*scale,TONES[zone.tone],scale,y-zone.radius-24*scale,/· F$/.test(zone.text));
  }
  if(c.stage<2)return;
- const event=c.event;if(!visibleAt(event,camera,230))return;
+ const event=c.event,radius=def.event.kind==='convoy'?ZONES.convoy:ZONES.gathering;if(!visibleAt(event,camera,radius+60))return;
+ const x=event.x,y=event.y+GROUND;
+ if(!event.complete){
+  drawDecal(ctx,x,y,radius,TONES.objective,{progress:event.progress,icon:'event',glint:true,reduced,time:t,scale});
+  say(ctx,labels,(def.event.kind==='convoy'?'Escort · ':'Hold · ')+Math.floor(event.progress*100)+'%',x,y+radius+30*scale,TONES.objective,scale,y-radius-24*scale,true);
+ }
  ctx.save();ctx.translate(event.x,event.y);glow(ctx,0,-25,130,event.complete?'#ffdc7e33':'#a2d6d722');
- ctx.strokeStyle='#e4c77b';ctx.lineWidth=3;if(!event.complete){ctx.beginPath();ctx.ellipse(0,20,165,105,0,0,Math.PI*2);ctx.stroke();}
  drawWorldDetail(ctx,images,AREAS[run.areaIndex].detailTheme*4+1,0,22+(reduced?0:Math.sin(t*3)*1.4),AREAS[run.areaIndex].detailTheme===2?155:135);
- if(!event.complete&&distance(p,event)>140)markerLabel(ctx,'scenery',def.event.name,0,-130,scale);
- ctx.font=canvasFont('small',scale);ctx.textAlign='center';ctx.fillStyle='#ffecc2';if(!event.complete)ctx.fillText(Math.floor(event.progress*100)+'% · Stay within the gold circle',0,145);ctx.restore();
+ ctx.restore();
 }

@@ -34,7 +34,12 @@ export function predictedTarget(player,seconds=0.2){
 export function enemySteering(enemy,player,obstacles,field){
   const gap=distance(enemy,player),side=enemy.steerSide??(enemy.id%2?1:-1);
   let target=player,intent='pursue';
-  if(enemy.bossKind){
+  if(enemy.bossKind&&enemy.guardUp&&gap<700){
+    // A guarded Warden presses in to just outside blade reach; it holds still once there.
+    const hold={x:player.x+(enemy.x-player.x)/(gap||1)*125,y:player.y+(enemy.y-player.y)/(gap||1)*125};
+    if(distance(enemy,hold)<14)return {x:0,y:0,intent:'press'};
+    target=hold;intent='press';
+  }else if(enemy.bossKind){
     const angle=(enemy.casts||0)*1.9+(enemy.id%3),radius=enemy.bossKind==='root'?175:enemy.bossKind==='bell'?290:enemy.bossKind==='furnace'?205:enemy.bossKind==='constellation'?365:340;
     target=gap>650?player:{x:player.x+Math.cos(angle)*radius,y:player.y+Math.sin(angle)*radius*0.7};intent='reposition';
   }else if(enemy.type==='skirmisher'&&gap<470){

@@ -39,7 +39,7 @@ export function createAudio(onStatus,host=globalThis) {
     },
     sound(kind){
       if(!effects||!context||context.state!=='running')return;
-      const notes={pulse:210,dash:480,slash:310,mend:640,hurt:95,upgrade:720,victory:880,defeat:110,boss:135,beacon:790,lantern:540,sunbreak:180,'guard-break':260,ward:560,'ward-hit':340,'area-clear':840,area:660};
+      const notes={pulse:210,dash:480,slash:310,mend:640,hurt:95,upgrade:720,victory:880,defeat:110,boss:135,beacon:790,lantern:540,sunbreak:180,'guard-break':260,ward:560,'ward-hit':340,'area-clear':840,area:660,'slash-finisher':230,'boss-exposed':260,'boss-guard':150,'boss-enraged':118,'boss-summon':165,'sol-volley':600,'lunar-nova':520};
       const osc=context.createOscillator(),gain=context.createGain(),now=context.currentTime;osc.type=kind==='hurt'?'sawtooth':'sine';
       osc.frequency.setValueAtTime(notes[kind]||400,now);osc.frequency.exponentialRampToValueAtTime((notes[kind]||400)*1.5,now+0.15);
       gain.gain.setValueAtTime(0.0001,now);gain.gain.exponentialRampToValueAtTime(0.035,now+0.015);gain.gain.exponentialRampToValueAtTime(0.0001,now+0.25);

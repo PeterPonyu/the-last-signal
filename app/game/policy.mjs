@@ -32,7 +32,14 @@ export function createPolicy(policy='tactical',{routePlan=null,upgradeFamily=nul
    if(selected&&!selected.completed&&selected.kind==='repair'&&distance(p,selected)<70)hold=true;
    if(selected&&!selected.completed&&selected.kind==='escort'&&selected.status==='active'&&distance(p,target)<60)hold=true;
    if(c.stage>=2&&!c.event.complete&&distance(p,c.event)<75)hold=true;
-   if(boss){const angle=run.areaTime*0.25;target={x:Math.max(WORLD.left+100,Math.min(WORLD.right-100,boss.x+235*Math.cos(angle))),y:Math.max(WORLD.top+100,Math.min(WORLD.bottom-100,boss.y+195*Math.sin(angle)))};hold=false;}
+   if(boss){const angle=run.areaTime*0.25;target={x:Math.max(WORLD.left+100,Math.min(WORLD.right-100,boss.x+235*Math.cos(angle))),y:Math.max(WORLD.top+100,Math.min(WORLD.bottom-100,boss.y+195*Math.sin(angle)))};hold=false;
+    // A tactical player closes in to break a Warden's guard or punish its exposure, and
+    // steps out of reach when a slam winds up.
+    if(policy==='tactical'&&boss.guardMax>0){
+     const d=distance(p,boss)||1,slam=boss.attackKind==='slam'&&boss.attack>0;
+     if(slam)target={x:boss.x+(p.x-boss.x)/d*260,y:boss.y+(p.y-boss.y)/d*260};
+     else if(boss.exposed>0||boss.guardUp)target={x:boss.x+(p.x-boss.x)/d*88,y:boss.y+(p.y-boss.y)/d*88};
+    }}
    if(run.gateOpen){target=JOURNEY[run.areaIndex].exit;hold=false;}
    if(!target)target=area.spawn;
    const key=run.areaIndex+':'+c.stage+':'+Math.round(target.x/60)+':'+Math.round(target.y/60);
@@ -42,6 +49,8 @@ export function createPolicy(policy='tactical',{routePlan=null,upgradeFamily=nul
     let ax=0,ay=0;
     for(const e of run.enemies){const d=distance(e,p);if(e.warning<=0&&d<105){ax+=(p.x-e.x)/(d||1)*(105-d)/80;ay+=(p.y-e.y)/(d||1)*(105-d)/80;}}
     for(const h of run.hazards){const d=distance(h,p);if(d<h.radius+38&&d>=Math.max(0,(h.inner||0)-18)){ax+=(p.x-h.x)/(d||1)*2.4;ay+=(p.y-h.y)/(d||1)*2.4;}}
+    // Step sideways out of a telegraphed charge lane.
+    for(const e of run.enemies)if(e.hp>0&&(e.chargeWarning>0||e.charge>0)){const rx=p.x-e.x,ry=p.y-e.y,along=rx*e.chargeX+ry*e.chargeY,side=rx*-e.chargeY+ry*e.chargeX;if(along>-20&&along<420&&Math.abs(side)<70){const sign=side<0?-1:1;ax+=-e.chargeY*sign*2.2;ay+=e.chargeX*sign*2.2;}}
     for(const s of run.shots)if(s.hostile&&distance(s,p)<110){const cross=(p.x-s.x)*s.vy-(p.y-s.y)*s.vx,sign=cross<0?-1:1;ax+=s.vy/225*sign;ay-=s.vx/225*sign;}
     if(ax||ay)steering={x:steering.x+ax*1.8,y:steering.y+ay*1.8};
    }

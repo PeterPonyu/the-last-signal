@@ -11,9 +11,9 @@ export function nearbyInteraction(run){
   return targets.filter(point=>distance(run.player,point)<120&&clearPath(run.player,point,obstacles,8)).sort((a,b)=>distance(run.player,a)-distance(run.player,b))[0]||null;
 }
 export function gatewayPrompt(run){
-  if(!run.gateOpen)return 'Gateway · Sealed';
-  if(nearbyInteraction(run)?.kind!=='gate')return run.areaIndex===AREAS.length-1?'Approach the shared dawn':'Approach gateway';
-  return run.areaIndex===AREAS.length-1?'Release the dawn · F':'Enter gateway · F';
+  if(!run.gateOpen)return 'Gate sealed';
+  if(nearbyInteraction(run)?.kind!=='gate')return run.areaIndex===AREAS.length-1?'Approach the shared dawn':'Approach the gate';
+  return run.areaIndex===AREAS.length-1?'Release the dawn · F':'Enter the gate · F';
 }
 export function journeyTarget(run){
   const story=JOURNEY[run.areaIndex],p=run.player;
@@ -22,7 +22,7 @@ export function journeyTarget(run){
 }
 export function objectiveText(run){
   const story=JOURNEY[run.areaIndex],area=AREAS[run.areaIndex];
-  if(run.gateOpen)return 'Road open · Reach '+story.exit.name+' · F';
+  if(run.gateOpen)return 'Go to '+story.exit.name+' · F';
   return campaignObjective(run);
 }
 export function corpseAppearance(body){

@@ -1,6 +1,6 @@
-import {CAMPAIGN,upgradeChoices,campaignMilestones} from '../../content/campaign.mjs';
-import {readGuidance,saveGuidance,guidanceEnabled,completeGuidedRun,guidanceStep,INTRO_RUNS} from './guidance.mjs';
-import {SYMBOLS,symbolSvg} from '../render/symbols.mjs';
+import {CAMPAIGN,upgradeChoices} from '../../content/campaign.mjs';
+import {readGuidance,saveGuidance,guidanceEnabled,completeGuidedRun,guidanceStep,campaignStep,guardState,CHAMPION_HINTS} from './guidance.mjs';
+import {symbolSvg} from '../render/symbols.mjs';
 import {createRun,update,requestAbility,chooseUpgrade,advanceArea,interact} from '../game/simulation.mjs';
 import {JOURNEY,ENEMY_ROLES} from '../../content/journey.mjs';
 import {nearbyInteraction,gatewayPrompt,objectiveText} from '../game/journey.mjs';
@@ -20,6 +20,9 @@ const text=(id,value)=>{const element=$(id),next=String(value);if(element.textCo
 const property=(id,key,value)=>{const element=$(id);if(element[key]!==value)element[key]=value;};
 const width=(id,value)=>{const element=$(id),next=`${Math.round(Math.max(0,Math.min(100,value))*1000)/1000}%`;if(element.style.width!==next)element.style.width=next;};
 const withoutKey=label=>String(label).replace(/\s*·\s*F$/,'');
+// "Step 2/5 · Choose a road" in the page language; the open gate (stage 5) needs no number.
+const stepText=step=>step.stage<5?t('hud.stepOf',{n:step.number})+' · '+t('hud.stage'+step.stage):t('hud.stage5');
+const stepList=()=>'<ol class="step-list">'+[0,1,2,3,4].map(i=>'<li>'+esc(t('hud.stage'+i))+'</li>').join('')+'</ol>';
 // Key hints follow the active input: F on keyboards, LB on gamepads, none on touch.
 const keyHint=label=>inputMode==='touch'?withoutKey(label):inputMode==='gamepad'?String(label).replace(/(\s·\s)F$/,'$1LB'):label;
 
@@ -37,6 +40,9 @@ const audio=createAudio(message=>{audioStatus=message;text('audio-status',audioT
 const loop=createFrameLoop(frame);
 const ABILITIES=[['slash','slash'],['dash','dash'],['pulse','pulse'],['sunbreak','sunbreak'],['solarLance','lance']];
 const PAD_LABELS={slash:'A',dash:'B',pulse:'X',sunbreak:'Y',solarLance:'RB'},KEY_LABELS={slash:'J',dash:'␣',pulse:'E',sunbreak:'Q',solarLance:'R'};
+const HELP_NOTES=['help.note1','help.note2','help.note3','help.note4','help.note5','help.note6','help.note7','help.note8'];
+const SYMBOL_CARDS=['beacon','lantern','guide','gate','danger','hero','boss','scenery'];
+const GUARD_LABELS={up:'hud.guard',enraged:'hud.enraged',exposed:'hud.exposed',down:'hud.guardDown'};
 
 /* ---------- Language ---------- */
 function applyStatic(){
@@ -195,7 +201,7 @@ function setGuidanceMode(mode){
 function showStart(){
   const previous=readResults(safeStorage).map(r=>tr(DIFFICULTIES[r.difficulty].label)+': '+t('start.maps',{areas:r.areas,total:AREAS.length})+' · '+formatTime(r.seconds)+(r.won?' · '+t('start.complete'):'')).join(' / ');
   dialog(t('start.kicker'),t('start.title'),
-    '<p>'+esc(t('start.goal'))+'</p>'+
+    '<p>'+esc(t('start.goal'))+'</p>'+stepList()+
     '<fieldset class="difficulty-options">'+Object.entries(DIFFICULTIES).map(([id,d])=>'<label><input type="radio" name="difficulty" value="'+id+'"'+(id===selectedDifficulty?' checked':'')+'><strong>'+esc(tr(d.name))+' <small>'+esc(tr(d.label))+'</small></strong><span>'+esc(tr(d.description))+'</span></label>').join('')+'</fieldset>'+
     (previous?'<p class="fine-print">'+esc(t('start.last'))+' — '+esc(previous)+'</p>':'')+settingsMarkup(),
     [{label:t('start.begin'),className:'primary',action:()=>{selectedDifficulty=modal.querySelector('[name="difficulty"]:checked')?.value||'normal';startRun();}}]);
@@ -214,11 +220,12 @@ function showHelp(){
     row(t('ab.solarLance'),t('help.lance.k'),icon('lance'),'RB / RT')+
     row(t('help.interact'),'F',t('help.interact.t'),'LB')+
     row(t('help.pause'),t('help.pause.k'),'☰','Start')+
-  '</tbody></table><ul class="notes"><li>'+esc(t('help.note1'))+'</li><li>'+esc(t('help.note2'))+'</li><li>'+esc(t('help.note3'))+'</li><li>'+esc(t('help.note4'))+'</li></ul>';
+  '</tbody></table><p class="steps-intro">'+esc(t('help.steps'))+'</p>'+stepList()+
+    '<ul class="notes">'+HELP_NOTES.map(key=>'<li>'+esc(t(key))+'</li>').join('')+'</ul>';
   dialog(t('help.kicker'),t('help.title'),body,[{label:t('guide.symbols'),action:()=>show(showSymbols)},{label:t('help.ok'),className:'primary',action:closeDialog}],{wide:true});
 }
 function showSymbols(){
-  const cards=['beacon','lantern','guide','gate','danger','hero','boss','scenery'].map(kind=>'<li class="symbol-card"><div class="symbol-illustration symbol-'+kind+'">'+symbolSvg(kind)+'</div><div><h3>'+esc(tr(SYMBOLS[kind].name))+'</h3><p>'+esc(tr(SYMBOLS[kind].description))+'</p></div></li>').join('');
+  const cards=SYMBOL_CARDS.map(kind=>'<li class="symbol-card"><div class="symbol-illustration symbol-'+kind+'">'+symbolSvg(kind)+'</div><div><h3>'+esc(t('sym.'+kind+'.name'))+'</h3><p>'+esc(t('sym.'+kind+'.text'))+'</p></div></li>').join('');
   dialog(t('sym.kicker'),t('sym.title'),'<p>'+esc(t('sym.intro'))+'</p><ul class="symbol-legend">'+cards+'</ul><p class="fine-print">'+esc(t('sym.note'))+'</p>',[{label:t('common.back'),className:'primary',action:closeDialog}],{wide:true});
 }
 function showWorld(){dialog(t('world.kicker'),t('world.title'),t('world.body'),[{label:t('common.back'),className:'primary',action:closeDialog}]);}
@@ -234,8 +241,8 @@ function pause(){
   show(pauseMenu);
 }
 function pauseMenu(){
-  returnTo=null;
-  dialog(t('pause.kicker'),t('pause.title'),settingsMarkup()+(audioStatus?'<p class="fine-print">'+esc(audioText(audioStatus))+'</p>':''),[
+  returnTo=null;const area=AREAS[run.areaIndex];
+  dialog(t('pause.kicker',{chapter:area.chapter}),tr(area.name),'<p class="pause-step"><strong>'+esc(stepText(campaignStep(run)))+'</strong><span>'+esc(keyHint(tr(objectiveText(run))))+'</span></p>'+settingsMarkup()+(audioStatus?'<p class="fine-print">'+esc(audioText(audioStatus))+'</p>':''),[
     {label:t('pause.resume'),className:'primary',action:closeDialog},
     {label:t('pause.journal'),action:()=>{returnTo=pauseMenu;show(journal);}},{label:t('pause.controls'),action:()=>{returnTo=pauseMenu;show(showHelp);}},{label:t('pause.symbols'),action:()=>{returnTo=pauseMenu;show(showSymbols);}},
     {label:t('pause.restart'),action:startRun},{label:t('pause.quit'),action:home}
@@ -262,7 +269,7 @@ function routeClear(){
     [{label:t('clear.continue',{next:tr(next.name)}),className:'primary',action:async()=>{
       if(travelLoading)return;travelLoading=true;const button=$('modal-actions').querySelector('button');button.disabled=true;button.textContent=t('clear.loading');
       try{await loadAreaAssets(images,run.areaIndex+1);}catch{travelLoading=false;button.disabled=false;button.textContent=t('clear.retry');return;}
-      travelLoading=false;if(!advanceArea(run))return;modal.close();currentDialog=null;savedMode=null;clearInput();accumulated=0;canvas.focus({preventScroll:true});announce(tr(CAMPAIGN[run.areaIndex].messages[0]),8);loop.wake();
+      travelLoading=false;if(!advanceArea(run))return;modal.close();currentDialog=null;savedMode=null;clearInput();accumulated=0;canvas.focus({preventScroll:true});announceArea();loop.wake();
     }}],{locked:true});
 }
 let lastRecordSaved=true;
@@ -284,10 +291,10 @@ function finishDialog(){
 }
 function interactNearby(){
   if(modal.open||!run||run.mode!=='running')return;
-  const result=interact(run);if(!result)return;
-  if(result.kind==='route'){announce(tr(result.text),8);return;}
+  // A chosen road speaks through the story line, so it needs no second banner.
+  const result=interact(run);if(!result||result.kind==='route')return;
   if(result.kind==='dialogue'){
-    const builder=()=>dialog(t('npc.kicker'),tr(result.title),'<p>'+esc(tr(result.text))+'</p><p class="fine-print">'+esc(t('npc.note'))+'</p>',[{label:t('npc.continue'),className:'primary',action:closeDialog}]);
+    const builder=()=>dialog(t('npc.kicker'),tr(result.title),'<p>'+esc(tr(result.text))+'</p><p class="fine-print">'+esc(t('npc.next',{action:keyHint(tr(objectiveText(run)))}))+'</p>',[{label:t('npc.continue'),className:'primary',action:closeDialog}]);
     show(builder);
   }
 }
@@ -297,7 +304,7 @@ function journal(){
   const runInfo=run?'<p class="fine-print"><strong>'+esc(t('journal.roads'))+':</strong> '+esc(run.routeChoices.map((id,i)=>tr(CAMPAIGN[i].routes.find(r=>r.id===id)?.name||id)).join(' → ')||t('journal.none'))+' · <strong>'+esc(t('journal.gifts'))+':</strong> '+esc(run.storyTokens.map(tr).join(' · ')||t('journal.firstLight'))+'</p>':'';
   const chapter='<section class="journal-chapter"><p>'+esc(tr(story.link))+'</p><p><strong>'+esc(t('journal.guide'))+':</strong> '+esc(tr(story.npc.name))+' · '+esc(tr(story.npc.title))+' · <strong>'+esc(t('journal.exit'))+':</strong> '+esc(tr(story.exit.name))+' → '+esc(tr(story.exit.destination))+'</p>'+
     story.roles.map(key=>{const e=ENEMY_ROLES[key];return '<h3>'+esc(tr(e.name))+' <small>'+esc(tr(e.tier))+'</small></h3><p>'+esc(tr(e.lore))+'</p><p class="counter">'+esc(tr(e.hint))+'</p>';}).join('')+
-    '<h3>'+esc(tr(CAMPAIGN[index].champion.name))+' <small>'+esc(t('journal.champion'))+'</small></h3><p>'+esc(tr(CAMPAIGN[index].champion.lore))+'</p>'+
+    '<h3>'+esc(tr(CAMPAIGN[index].champion.name))+' <small>'+esc(t('journal.champion'))+'</small></h3><p>'+esc(tr(CAMPAIGN[index].champion.lore))+'</p><p class="counter">'+esc(tr(CHAMPION_HINTS[CAMPAIGN[index].champion.id]))+'</p>'+
     '<h3>'+esc(tr(area.boss))+' <small>'+esc(t('journal.warden'))+'</small></h3><p>'+esc(tr(story.bossLore))+'</p><p class="counter">'+esc(tr(story.bossHint))+'</p></section>';
   currentDialog=journal;
   dialog(t('journal.kicker'),t('journal.title'),runInfo+tabs+chapter,[{label:t(run&&!returnTo?'journal.back':'common.back'),className:'primary',action:closeDialog}],{wide:true});
@@ -311,12 +318,30 @@ function startRun(){
   guidanceVisible=guidanceEnabled(guidance);guideKey='';
   document.body.classList.add('playing');$('landing').hidden=true;$('game').hidden=false;$('status').textContent='';
   updateOrientation();measureView();reservedDirty=true;showRotateHint();
-  accumulated=0;canvas.focus({preventScroll:true});text('banner','');
+  accumulated=0;canvas.focus({preventScroll:true});text('banner','');bannerQueue.length=0;bannerUntil=0;announceArea();
   loop.stop();loop.wake();
 }
-function announce(message,seconds=4){if(!$('banner').textContent)reservedDirty=true;text('banner',message);bannerUntil=(run?.time||0)+seconds;}
+// Banners stay up for at least BANNER_MIN seconds; later ones wait in a short queue (and
+// expire there), so a step change is not replaced by the boss that arrives in the same moment.
+// Urgent banners (a guard breaking, an enrage) show at once: their window is only seconds long.
+const BANNER_MIN=2.4,BANNER_STALE=6,bannerQueue=[];let bannerShownAt=0;
+function showBanner(message,seconds){if(!$('banner').textContent)reservedDirty=true;text('banner',message);bannerShownAt=run?.time||0;bannerUntil=bannerShownAt+seconds;}
+function announce(message,seconds=4,urgent=false){
+  const now=run?.time||0,current=$('banner').textContent;
+  if(!urgent&&current&&now<bannerUntil&&now-bannerShownAt<BANNER_MIN){
+    if(current!==message&&!bannerQueue.some(item=>item.message===message)){bannerQueue.push({message,seconds,at:now});if(bannerQueue.length>3)bannerQueue.shift();}
+    return;
+  }
+  showBanner(message,seconds);
+}
+function nextBanner(){
+  while(bannerQueue.length&&run.time-bannerQueue[0].at>BANNER_STALE)bannerQueue.shift();
+  const next=bannerQueue.shift();if(next)showBanner(next.message,next.seconds);return !!next;
+}
+function announceArea(){const area=AREAS[run.areaIndex];announce(t('ann.area',{chapter:area.chapter,name:tr(area.name)}),4);}
+const activeBossName=()=>tr(run.enemies.find(e=>e.boss&&e.hp>0)?.bossName||AREAS[run.areaIndex].boss);
 function home(){
-  run=null;modal.close();currentDialog=null;savedMode=null;clearInput();
+  run=null;modal.close();currentDialog=null;savedMode=null;clearInput();bannerQueue.length=0;
   loop.stop();audio.sync(null);
   document.body.classList.remove('playing');$('game').hidden=true;$('landing').hidden=false;$('start').focus({preventScroll:true});
 }
@@ -325,7 +350,7 @@ let rotateTimer=0;
 function showRotateHint(){
   clearTimeout(rotateTimer);
   const show=inputMode==='touch'&&innerHeight>innerWidth&&Math.min(innerWidth,innerHeight)<600;
-  $('rotate-hint').hidden=!show;if(show)rotateTimer=setTimeout(()=>{$('rotate-hint').hidden=true;},5000);
+  $('rotate-hint').hidden=!show;reservedDirty=true;if(show)rotateTimer=setTimeout(()=>{$('rotate-hint').hidden=true;reservedDirty=true;},5000);
 }
 addEventListener('orientationchange',()=>setTimeout(()=>{updateOrientation();measureView();showRotateHint();if(run)loop.wake();},150));
 
@@ -333,11 +358,11 @@ addEventListener('orientationchange',()=>setTimeout(()=>{updateOrientation();mea
 function renderGuidance(){
   property('field-guide','hidden',!guidanceVisible);
   if(!run||!guidanceVisible)return;
-  const step=guidanceStep(run),key=step.symbol+step.title+language();
+  const step=guidanceStep(run),key=step.symbol+step.kicker+step.title+language()+inputMode;
   if(key!==guideKey){
     guideKey=key;guidePinned=false;guideOpenUntil=stageSmall?0:run.time+7;reservedDirty=true;
-    $('guidance-session').textContent=guidance.mode==='auto'?t('guide.learning',{n:Math.min(guidance.completed+1,INTRO_RUNS),total:INTRO_RUNS}):t('guide.field');
-    $('guidance-symbol').innerHTML=symbolSvg(step.symbol);text('guidance-title',tr(step.title));text('guidance-copy',tr(step.text));
+    text('guidance-session',step.kicker?tr(step.kicker):t('guide.field'));
+    $('guidance-symbol').innerHTML=symbolSvg(step.symbol);text('guidance-title',keyHint(tr(step.title)));text('guidance-copy',tr(step.text));
   }
   const collapsed=stageSmall&&!guidePinned&&run.time>guideOpenUntil;
   if($('field-guide').classList.contains('collapsed')!==collapsed){$('field-guide').classList.toggle('collapsed',collapsed);reservedDirty=true;}
@@ -364,13 +389,17 @@ function render(){
   view.reserved=reserved;
   camera=drawBattlefield(ctx,canvas,images,run,reduced,camera,['running','ending'].includes(run.mode)?renderElapsed:0,run.mode==='running'?accumulated*60:1,guidanceVisible,null,view);
   renderGuidance();
-  const area=AREAS[run.areaIndex];
-  text('area-label',area.chapter+' · '+tr(area.name));
+  // Step N/5 with its name and pips, then the one next action and its progress.
+  const area=AREAS[run.areaIndex],campaign=run.campaign,step=campaignStep(run),done=step.progress;
+  text('area-label',tr(area.name));
+  text('step-number',step.stage<5?t('hud.stepOf',{n:step.number}):'');text('campaign-stage',t('hud.stage'+step.stage));
+  const pips=$('step-pips');if(pips.dataset.stage!==String(step.stage)){pips.dataset.stage=step.stage;[...pips.children].forEach((pip,i)=>{pip.className=i<step.stage?'done':i===step.stage?'now':'';});}
   text('objective',keyHint(tr(objectiveText(run))));
-  const campaign=run.campaign,milestones=campaignMilestones(run.areaIndex,run.difficulty),next=milestones.find(n=>n>campaign.defeats)||milestones.at(-1);
-  text('campaign-stage',t('hud.stage'+campaign.stage));
-  text('campaign-count',t('hud.count',{n:campaign.defeats,m:next}));property('campaign-meter','max',milestones.at(-1));property('campaign-meter','value',Math.min(campaign.defeats,milestones.at(-1)));
-  const storyText=run.time<campaign.noticeUntil?tr(campaign.notice):'';
+  property('campaign-progress','hidden',!done);
+  if(done){property('campaign-meter','max',done.max);property('campaign-meter','value',done.value);text('campaign-count',done.kind==='kills'?t('hud.count',{n:done.value,m:done.max}):'');}
+  // After the Warden falls the progression repeats its arrival line; the gate banner speaks instead.
+  const stale=run.gateOpen&&campaign.notice===CAMPAIGN[run.areaIndex].messages[4];
+  const storyText=run.time<campaign.noticeUntil&&!stale?tr(campaign.notice):'';
   if(!!storyText!==!!$('story-line').textContent)reservedDirty=true;
   text('story-line',storyText);
   if(campaign.stage>=3&&run.areaIndex<AREAS.length-1&&prefetchedArea!==run.areaIndex+1){prefetchedArea=run.areaIndex+1;loadAreaAssets(images,prefetchedArea).catch(()=>{});}
@@ -397,8 +426,14 @@ function render(){
   text('companion-status',c.nova>0?t('hud.dawnNova'):c.mend>0?t('hud.dawnMending'):c.cast>0?t('hud.dawnWeaving'):c.mendCooldown>0?t('hud.dawnMendIn',{n:Math.ceil(c.mendCooldown)}):t('hud.dawnMendReady'));
   const boss=run.enemies.find(e=>e.boss&&e.hp>0);
   if($('boss-hud').hidden!==!boss){$('boss-hud').hidden=!boss;reservedDirty=true;}
-  if(boss){text('boss-name',tr(boss.bossName||area.boss)+' · '+t(boss.bossRank==='champion'?'hud.champion':'hud.warden')+(boss.phase===2?' · '+t('hud.unbound'):''));width('boss-fill',boss.hp/boss.maxHp*100);}
-  if(run.time>bannerUntil&&$('banner').textContent){text('banner','');reservedDirty=true;}
+  if(boss){
+    text('boss-name',tr(boss.bossName||area.boss)+' · '+t(boss.bossRank==='champion'?'hud.champion':'hud.warden')+(boss.phase===2?' · '+t('hud.phase2'):''));width('boss-fill',boss.hp/boss.maxHp*100);
+    const guard=guardState(boss),row=$('boss-guard');
+    if(row.hidden!==!guard){row.hidden=!guard;reservedDirty=true;}
+    if(guard){if(row.dataset.state!==guard.state)row.dataset.state=guard.state;text('guard-label',t(GUARD_LABELS[guard.state]));width('guard-fill',guard.fill*100);}
+  }
+  const queued=bannerQueue.length>0&&(run.time>=bannerUntil||run.time-bannerShownAt>=BANNER_MIN)&&nextBanner();
+  if(!queued&&run.time>bannerUntil&&$('banner').textContent){text('banner','');reservedDirty=true;}
 }
 
 function frame(elapsed){
@@ -413,15 +448,20 @@ function frame(elapsed){
   if(run){
     for(const event of run.events){
       audio.sound(event);
-      if(event==='gate-open')announce(t('ann.gate',{token:tr(JOURNEY[run.areaIndex].token),exit:tr(JOURNEY[run.areaIndex].exit.name)}),10);
-      if(event==='boss-phase')announce(t('ann.phase',{name:tr(run.enemies.find(e=>e.boss&&e.phaseShift>0)?.bossName||AREAS[run.areaIndex].boss)}),5);
-      if(event==='boss')announce(t('ann.boss',{name:tr(run.enemies.find(e=>e.boss&&e.warning>0)?.bossName||AREAS[run.areaIndex].boss)}));
+      if(event==='gate-open')announce(t('ann.gate',{token:tr(JOURNEY[run.areaIndex].token)}),8);
+      if(event==='stage'&&run.campaign.stage<5)announce(t('ann.step',{n:run.campaign.stage+1,name:t('hud.stage'+run.campaign.stage)}),4);
+      if(event==='boss-phase')announce(t('ann.phase',{name:tr(run.enemies.find(e=>e.boss&&e.phaseShift>0)?.bossName||AREAS[run.areaIndex].boss)}),4);
+      if(event==='boss'){const arriving=run.enemies.find(e=>e.boss&&e.warning>0),guarded=arriving?.guardMax>0;announce(t(guarded?'ann.bossGuard':'ann.boss',{name:tr(arriving?.bossName||AREAS[run.areaIndex].boss)}));}
+      if(event==='boss-exposed')announce(t('ann.exposed'),3,true);
+      if(event==='boss-guard')announce(t('ann.guardBack'),3,true);
+      if(event==='boss-enraged')announce(t('ann.enraged',{name:activeBossName()}),4,true);
+      if(event==='boss-summon')announce(t('ann.summon',{name:activeBossName()}),3);
       if(event==='beacon')announce(t('ann.beacon'),3);
       if(event==='lantern')announce(t('ann.lantern'),3);
     }
     run.events.length=0;
     if(run.mode==='running'&&guidanceVisible){
-      const specialist=run.enemies.find(e=>e.role&&!seenEnemies.has(e.role));
+      const specialist=run.enemies.find(e=>e.role&&!e.boss&&!seenEnemies.has(e.role));
       if(specialist){seenEnemies.add(specialist.role);const role=ENEMY_ROLES[specialist.role];announce(tr(role.name)+' · '+tr(role.hint),6);}
       const newcomer=run.enemies.find(e=>['runner','sentinel','cantor'].includes(e.type)&&!seenEnemies.has(e.type));
       if(newcomer){seenEnemies.add(newcomer.type);announce(t('ann.'+newcomer.type),5);}

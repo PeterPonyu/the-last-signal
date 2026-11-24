@@ -19,7 +19,12 @@ h1{font-size:clamp(32px,min(6.4vw,9.5dvh),78px);line-height:1.07;letter-spacing:
 .landing-links button,.lang-switch button{font-size:13px}
 .area-label{font:600 11px/1.4 var(--font-ui);letter-spacing:.08em;text-transform:uppercase}
 .objective{font:600 15px/1.35 var(--font-ui)}
+.step-no{font:700 11px/1.2 var(--font-ui);letter-spacing:.09em;text-transform:uppercase}
+.stage-name{font:600 13px/1.2 var(--font-ui)}
 .campaign{font:600 12px/1.3 var(--font-ui)}
+.guard>span{font:700 10px/1.2 var(--font-ui);letter-spacing:.06em;text-transform:uppercase}
+.step-list li{font:600 12.5px/1.2 var(--font-ui)}.step-list li::before{font:700 11px/1 var(--font-ui)}
+.pause-step{font-size:13.5px}.pause-step strong{font:600 14px/1.4 var(--font-ui)}
 .maps li{font:600 10px/1 var(--font-ui)}
 .vitals-row,.tally,.boss{font:600 11px/1.4 var(--font-ui);letter-spacing:.03em}
 .tally>span:first-child{font-size:16px;font-variant-numeric:tabular-nums}
@@ -46,8 +51,11 @@ dialog p,dialog li,.controls-table{font-size:13.5px;line-height:1.55}
 .journal-chapter h3 small{font:400 12px/1.5 var(--font-ui)}
 .symbol-card h3{font:600 13.5px/1.35 var(--font-ui)}.symbol-card p{font-size:12.5px;line-height:1.5}
 #health-number,#run-time,#kills,.ability-text small,.result-grid b,.count{font-variant-numeric:tabular-nums}
-:lang(zh) .eyebrow,:lang(zh) .area-label,:lang(zh) .wordmark,:lang(zh) .guide-session{letter-spacing:.04em}
+/* No one-word (or one-character) last lines in wrapped copy. */
+.lead,dialog p,dialog li,.toast,.guide-copy,.difficulty-options span,.upgrade-card small{text-wrap:pretty}
+:lang(zh) .eyebrow,:lang(zh) .area-label,:lang(zh) .wordmark,:lang(zh) .guide-session,:lang(zh) .step-no,:lang(zh) .guard>span{letter-spacing:.04em}
 :lang(zh) h1{letter-spacing:0;line-height:1.18}
 :lang(zh) .lead{line-height:1.8}
-@media (max-height:430px){.objective{font-size:13px}.toast{font-size:12px;padding:5px 10px}.guide-copy{font-size:12px}}
+@media (max-height:430px){.objective{font-size:13px}.stage-name{font-size:12px}.toast{font-size:12px;padding:5px 10px}.guide-copy{font-size:12px}}
 @media (max-width:640px){.objective{font-size:14px}}
+@media (max-width:560px),(max-height:480px){.step-list li{font-size:11.5px}.step-list li::before{font-size:10px}}

@@ -7,7 +7,7 @@
   <meta name="mobile-web-app-capable" content="yes">
   <meta name="apple-mobile-web-app-capable" content="yes">
   <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
-  <meta name="description" content="An original browser action adventure. Carry the last light across five lands. Plays with keyboard, mouse, touch or gamepad.">
+  <meta name="description" content="An original action adventure across five lands. Plays with keyboard, mouse, touch or gamepad.">
   <title>The Last Signal · Zeyu's Golden Rebellion</title>
   <link rel="icon" type="image/svg+xml" href="icon.svg">
   <link rel="stylesheet" href="style.css">
@@ -21,10 +21,10 @@
     </header>
     <div class="landing-art" aria-hidden="true"><div class="solar-ring"></div><img class="hero-art" src="assets/zeyu-golden.png" alt=""></div>
     <div class="intro">
-      <p class="eyebrow" data-i18n="landing.eyebrow">An original action adventure starring Zeyu</p>
+      <p class="eyebrow" data-i18n="landing.eyebrow">An action adventure starring Zeyu</p>
       <h1 id="title" data-i18n-html="landing.title">Let the world<br>hear your <em>answer.</em></h1>
-      <p class="lead" data-i18n="landing.lead">The sun has gone dark. Carry the last light across five lands, protect the keepers and free the Hollow.</p>
-      <div class="start-row"><button id="start" type="button" class="primary" disabled>Loading…</button><p class="facts"><span data-i18n="landing.facts">5 maps · 10 bosses · 25–35 minutes</span><span data-i18n="landing.devices">Keyboard, mouse, touch or gamepad</span></p></div>
+      <p class="lead" data-i18n="landing.lead">The sun has gone dark. Carry the last light across five lands.</p>
+      <div class="start-row"><button id="start" type="button" class="primary" disabled>Loading…</button><p class="facts"><span data-i18n="landing.facts">5 maps · 10 bosses · 25–35 min</span><span data-i18n="landing.devices">Keyboard, mouse, touch or gamepad</span></p></div>
       <nav class="landing-links"><button id="controls-button" type="button" data-i18n="landing.howTo">How to play</button><button id="world-button" type="button" data-i18n="landing.world">The world</button><button id="character-button" type="button" data-i18n="landing.companions">Companions</button></nav>
       <p class="hero-quote"><span data-i18n="landing.quote">“Then I will make a road.”</span> <cite>— Zeyu</cite></p>
     </div>
@@ -34,8 +34,9 @@
   <section id="game" class="game" hidden aria-label="The Last Signal">
     <header class="topbar">
       <button id="pause-button" type="button" class="icon-button" data-i18n-aria="top.menu" aria-label="Menu"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M4 7h16M4 12h16M4 17h16"/></svg></button>
-      <div class="where"><span id="area-label" class="area-label"></span><strong id="objective" class="objective"></strong></div>
-      <div class="campaign"><span id="campaign-stage" class="stage-name"></span><progress id="campaign-meter" max="1" value="0"></progress><span id="campaign-count" class="count"></span></div>
+      <div class="stepper" role="group" data-i18n-aria="top.steps" aria-label="Map steps"><span class="step-text"><span id="step-number" class="step-no"></span><span id="campaign-stage" class="stage-name"></span></span><span id="step-pips" class="pips" aria-hidden="true"><i></i><i></i><i></i><i></i><i></i></span></div>
+      <div class="next"><strong id="objective" class="objective"></strong><span id="campaign-progress" class="campaign" hidden><progress id="campaign-meter" max="1" value="0" aria-labelledby="objective"></progress><span id="campaign-count" class="count"></span></span></div>
+      <span id="area-label" class="area-label"></span>
       <ol id="route-progress" class="maps" data-i18n-aria="top.maps" aria-label="Map progress"></ol>
       <button id="fullscreen-button" type="button" class="icon-button" data-i18n-aria="top.fullscreen" aria-label="Full screen" hidden><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M4 9V4h5M15 4h5v5M20 15v5h-5M9 20H4v-5"/></svg></button>
     </header>
@@ -46,14 +47,13 @@
         <div class="vitals"><div class="vitals-row"><span class="who">ZEYU</span><span id="health-number"></span></div><div class="bar"><span id="health-fill"></span></div><div id="party-status" class="party" aria-live="polite"></div></div>
         <div class="tally"><span id="run-time">0:00</span><span><b id="kills">0</b> <span id="kills-label" data-i18n="hud.freed">freed</span></span></div>
       </div>
-      <div class="toasts"><p id="story-line" class="toast story" aria-live="polite"></p><p id="banner" class="toast banner" role="status" aria-atomic="true"></p></div>
+      <div class="toasts"><p id="story-line" class="toast story" aria-live="polite"></p><p id="banner" class="toast banner" role="status" aria-atomic="true"></p><p id="rotate-hint" class="toast rotate-hint" data-i18n="rotate.hint" hidden></p></div>
       <aside id="field-guide" class="guide" hidden>
         <div class="guide-head"><span id="guidance-symbol" class="guide-symbol" aria-hidden="true"></span><div><p id="guidance-session" class="guide-session"></p><h3 id="guidance-title"></h3></div></div>
         <p id="guidance-copy" class="guide-copy"></p>
         <div class="guide-actions"><button id="guide-legend-button" type="button" data-i18n="guide.symbols">Symbols</button><button id="hide-guidance" type="button" data-i18n="guide.hide">Hide</button></div>
       </aside>
-      <div id="boss-hud" class="boss" hidden><span id="boss-name"></span><div class="bar"><span id="boss-fill"></span></div></div>
-      <p id="rotate-hint" class="rotate-hint" data-i18n="rotate.hint" hidden></p>
+      <div id="boss-hud" class="boss" hidden><span id="boss-name"></span><div class="bar"><span id="boss-fill"></span></div><div id="boss-guard" class="guard" hidden><span id="guard-label"></span><div class="bar"><span id="guard-fill"></span></div></div></div>
     </div>
 
     <div id="touch-controls" class="touch" data-i18n-aria="touch.label" aria-label="Touch controls">

@@ -1,4 +1,3 @@
-import {JOURNEY} from '../../content/journey.mjs';
 import {WORLD} from '../../content/game.mjs';
 import {distance} from '../game/geometry.mjs';
 import {restorationAt,visibleAt} from './presentation.mjs';
@@ -15,6 +14,27 @@ function foliageFor(area){
   }
   patches.set(area,result);return result;
 }
+// The playable world fades into a dark fog band instead of a drawn frame. The fog starts
+// EDGE_FOG.inside units within the boundary and is deepest at the texture's outer edge.
+export const EDGE_FOG={inside:120,colors:['#060d0b','#07070d','#0a060e','#120604','#05081a']};
+export function edgeFogBands(camera){
+  const bands=[],inside=EDGE_FOG.inside;
+  if(camera.x<WORLD.left+inside)bands.push({side:'left',from:WORLD.left+inside,to:0});
+  if(camera.x+camera.width>WORLD.right-inside)bands.push({side:'right',from:WORLD.right-inside,to:WORLD.width});
+  if(camera.y<WORLD.top+inside)bands.push({side:'top',from:WORLD.top+inside,to:0});
+  if(camera.y+camera.height>WORLD.bottom-inside)bands.push({side:'bottom',from:WORLD.bottom-inside,to:WORLD.height});
+  return bands;
+}
+function drawEdgeFog(ctx,camera,areaIndex){
+  const color=EDGE_FOG.colors[areaIndex]||EDGE_FOG.colors[0];
+  for(const band of edgeFogBands(camera)){
+    const horizontal=band.side==='left'||band.side==='right',g=horizontal?ctx.createLinearGradient(band.from,0,band.to,0):ctx.createLinearGradient(0,band.from,0,band.to);
+    g.addColorStop(0,color+'00');g.addColorStop(0.45,color+'4d');g.addColorStop(0.8,color+'a6');g.addColorStop(1,color+'d9');
+    ctx.fillStyle=g;
+    if(horizontal)ctx.fillRect(Math.min(band.from,band.to),camera.y-2,Math.abs(band.to-band.from),camera.height+4);
+    else ctx.fillRect(camera.x-2,Math.min(band.from,band.to),camera.width+4,Math.abs(band.to-band.from));
+  }
+}
 export function glow(ctx,x,y,r,color){
   const g=ctx.createRadialGradient(x,y,0,x,y,r);g.addColorStop(0,color);g.addColorStop(1,'transparent');ctx.fillStyle=g;ctx.fillRect(x-r,y-r,r*2,r*2);
 }
@@ -28,8 +48,8 @@ export function drawWorld(ctx,images,area,run,camera,reduced){
     ctx.drawImage(image,image.width*0.1,image.height*0.12,image.width*0.8,image.height*0.76,-0.5,-0.5,tw+1,th+1);ctx.restore();
   }
   ctx.lineJoin='round';ctx.lineCap='round';
-  ctx.lineWidth=5;ctx.strokeStyle='#c2a66e55';ctx.strokeRect(WORLD.left-20,WORLD.top-20,WORLD.right-WORLD.left+40,WORLD.bottom-WORLD.top+40);
   ctx.fillStyle=['#101b1726','#100e1820','#100e1820','#3518112b','#0c153726'][run.areaIndex];ctx.fillRect(0,0,WORLD.width,WORLD.height);
+  drawEdgeFog(ctx,camera,run.areaIndex);
   for(const b of run.beacons)if(b.charge>0){ctx.save();ctx.globalAlpha=b.charge;glow(ctx,b.x,b.y,230,'#ffcd6532');ctx.restore();}
   const party=[run.player,run.companion,...(run.sol.active?[run.sol]:[])];
   const waves=run.effects.filter(f=>['pulse','lantern','restore'].includes(f.kind));
