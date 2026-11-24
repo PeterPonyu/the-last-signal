@@ -17,22 +17,22 @@ export const KITS = {
   garden: { asset:'gardenKit',
     sprites:{
       hedge:{frame:0,height:90,radius:30,parts:[[-44,0,28],[44,0,28]],reach:73}, 'hedge-post':{frame:1,height:125,radius:36,reach:44}, 'tree-blossom':{frame:2,height:171,radius:26,reach:67},
-      'tree-fruit':{frame:3,height:171,radius:26,reach:67}, roots:{frame:4,height:103,radius:42,parts:[[-49,4,28],[49,4,28]],reach:80,light:[0,-57,42,'#ffcf6a33']}, planter:{frame:5,height:103,radius:34,parts:[[-28,0,25],[28,0,25]],reach:51},
-      urn:{frame:6,height:141,radius:26,reach:30}, flowerbed:{frame:7,height:56,reach:66}, leaves:{frame:8,height:64,flat:true},
+      'tree-fruit':{frame:3,height:171,radius:26,reach:67}, roots:{frame:4,height:98,radius:42,parts:[[-49,4,28],[49,4,28]],reach:80,light:[0,-57,42,'#ffcf6a33']}, planter:{frame:5,height:103,radius:34,parts:[[-28,0,25],[28,0,25]],reach:51},
+      urn:{frame:6,height:141,radius:26,reach:30}, flowerbed:{frame:7,height:54,reach:66}, leaves:{frame:8,height:62,flat:true},
       'seed-lantern':{frame:9,height:103,reach:18,light:[22,-71,27,'#e8f5a055']}, 'gear-moss':{frame:10,height:59,flat:true}, stepping:{frame:11,height:64,flat:true}
     },
     pieces:{ landmark:{detail:0,height:190}, event:{detail:1,height:135}, gate:{detail:2,height:200}, open:{gate:0,height:200}, barrier:{detail:15,height:120}, foliage:{detail:12} } },
   causeway: { asset:'causewayKit',
     sprites:{
-      balustrade:{frame:0,height:89,radius:27,parts:[[-47,0,26],[47,0,26]],reach:75}, 'lamp-pier':{frame:1,height:145,radius:30,parts:[[32,-1,18]],reach:50,light:[-4,-114,30,'#8fe3e044']}, 'bell-pillar':{frame:2,height:164,radius:30,reach:34},
-      'broken-stones':{frame:3,height:74,radius:34,parts:[[-45,5,24],[45,6,24]],reach:71}, 'banner-post':{frame:4,height:169,radius:20,reach:43}, 'cart-wreck':{frame:5,height:86,radius:31,parts:[[-40,6,24],[40,0,26]],reach:67},
-      puddle:{frame:6,height:61,flat:true}, chimes:{frame:7,height:111,reach:24}, 'rope-coil':{frame:8,height:44,flat:true},
+      balustrade:{frame:0,height:89,radius:27,parts:[[-47,0,26],[47,0,26]],reach:75}, 'lamp-pier':{frame:1,height:145,radius:30,parts:[[32,-1,18]],reach:50,light:[-4,-114,30,'#8fe3e044']}, 'bell-pillar':{frame:2,height:164,radius:30,reach:33},
+      'broken-stones':{frame:3,height:74,radius:34,parts:[[-45,5,24],[45,6,24]],reach:71}, 'banner-post':{frame:4,height:169,radius:20,reach:43}, 'cart-wreck':{frame:5,height:82,radius:31,parts:[[-40,6,24],[40,0,26]],reach:67},
+      puddle:{frame:6,height:62,flat:true}, chimes:{frame:7,height:107,reach:24}, 'rope-coil':{frame:8,height:45,flat:true},
       bundles:{frame:9,height:98,reach:51}, barrier:{frame:10,height:104}, 'fallen-bell':{frame:11,height:48,reach:40}
     },
     pieces:{ landmark:{detail:4,height:190}, event:{detail:5,height:135}, gate:{detail:6,height:200}, open:{gate:1,height:200}, barrier:{sprite:'barrier',height:104}, foliage:{detail:13}, crossing:{detail:7,height:156} } },
   court: { asset:'courtKit',
     sprites:{
-      column:{frame:0,height:164,radius:26,reach:32}, 'column-broken':{frame:1,height:110,radius:26,parts:[[43,1,18]],reach:62}, statue:{frame:2,height:157,radius:31,reach:35,light:[1,-98,18,'#ffe39a44']},
+      column:{frame:0,height:164,radius:26,reach:32}, 'column-broken':{frame:1,height:107,radius:26,parts:[[43,1,18]],reach:62}, statue:{frame:2,height:157,radius:31,reach:35,light:[1,-98,18,'#ffe39a44']},
       throne:{frame:3,height:94,radius:34,parts:[[-42,4,24],[42,4,24]],reach:67}, brazier:{frame:4,height:148,radius:22,reach:29,light:[0,-102,46,'#d9a2ff55']}, shelf:{frame:5,height:137,radius:30,parts:[[-36,0,26],[36,0,26]],reach:65},
       scrolls:{frame:6,height:75,flat:true}, petals:{frame:7,height:60,flat:true}, sigil:{frame:8,height:70,flat:true},
       candles:{frame:9,height:66,reach:43,light:[0,-42,26,'#ffd27a44']}, barrier:{frame:10,height:104}, carpet:{frame:11,height:88,flat:true}

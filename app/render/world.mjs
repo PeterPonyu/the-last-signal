@@ -38,13 +38,29 @@ function drawGlowDisc(ctx,x,y,r,color){
 }
 
 const patches=new WeakMap(),grounds=new WeakMap();
-function foliageFor(area){
+// A stable 0..1 value per integer, so the same map always grows the same way.
+const hash=n=>{let h=Math.imul((n|0)^0x9e3779b9,0x85ebca6b);h^=h>>>13;h=Math.imul(h,0xc2b2ae35);return ((h^(h>>>16))>>>0)/4294967296;};
+// Ground growth and debris (flowers, bluegrass, crystals, slag, shards) gathers where the map would grow
+// or drop it: in small clumps at the feet of its props, plus a few loose drifts on open ground, instead
+// of an even carpet across the whole floor.
+export function foliageFor(area){
   if(patches.has(area))return patches.get(area);
   const result=[],decals=area.decorations.filter(d=>kitSprite(area,d.type)?.flat);
-  for(let i=0;i<700;i++){
-    const x=90+(i*227%(WORLD.width-180)),y=105+(i*139%(WORLD.height-210));
-    if(area.obstacles.some(o=>distance({x,y},o)<o.radius+18)||decals.some(d=>distance({x,y},d)<d.height*0.9))continue;
-    result.push({x,y,phase:i*2.3,size:7+i%8,variant:i});
+  const tuft=(x,y,n)=>{
+    if(x<70||y<85||x>WORLD.width-70||y>WORLD.height-85)return;
+    if(area.obstacles.some(o=>distance({x,y},o)<o.radius+16)||decals.some(d=>distance({x,y},d)<d.height*0.9)||result.some(p=>distance({x,y},p)<16))return;
+    result.push({x,y,phase:n*2.3,size:7+Math.floor(hash(n*7+3)*8),variant:n});
+  };
+  area.obstacles.forEach((o,i)=>{
+    if(!o.type)return;
+    for(let j=0,count=2+Math.floor(hash(i*31+1)*4);j<count;j++){
+      const angle=hash(i*131+j*17)*Math.PI*2,r=o.radius+18+hash(i*71+j*29)*44;
+      tuft(o.x+Math.cos(angle)*r*1.15,o.y+o.radius*0.2+Math.sin(angle)*r*0.75,i*8+j);
+    }
+  });
+  for(let k=0;k<26;k++){
+    const cx=150+hash(k*13+5)*(WORLD.width-300),cy=160+hash(k*17+11)*(WORLD.height-320);
+    for(let j=0;j<4;j++){const angle=hash(k*97+j*7)*Math.PI*2,r=12+hash(k*53+j*19)*60;tuft(cx+Math.cos(angle)*r,cy+Math.sin(angle)*r*0.7,1000+k*8+j);}
   }
   patches.set(area,result);return result;
 }
