@@ -1,6 +1,14 @@
 // Display-time localisation. The simulation, content and tests stay in English;
 // text is translated only where it reaches the player (DOM text and canvas text).
-import {ZH,ZH_PATTERNS} from './zh.mjs';
+import {ZH as BASE,ZH_PATTERNS as BASE_PATTERNS} from './zh.mjs';
+import * as answers from './zh-answers.mjs';
+import * as party from './zh-party.mjs';
+import * as world from './zh-world.mjs';
+import * as maps from './zh-maps.mjs';
+// Feature tables are merged over the base table; their patterns are tried before the base patterns.
+const FEATURES=[answers,party,world,maps];
+const ZH=Object.assign({},BASE,...FEATURES.map(feature=>feature.ZH));
+const ZH_PATTERNS=[...FEATURES.flatMap(feature=>feature.ZH_PATTERNS),...BASE_PATTERNS];
 import {UI} from './ui.mjs';
 
 export const LANGUAGES=['en','zh'];

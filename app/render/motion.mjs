@@ -1,6 +1,7 @@
 import {sampleClip,heroPose,companionPose,solPose,castPose} from '../game/animation.mjs';
 import {ANIMATIONS} from '../../content/animations.mjs';
 import {COMBAT} from '../../content/game.mjs';
+import {PARTY} from '../../content/party.mjs';
 
 // Render-side pose smoothing. The simulation's pose functions stay pure; this layer remembers what each actor
 // last showed (keyed by stable ids) and adds facing and locomotion hysteresis, light/heavy hit reactions, a held
@@ -39,7 +40,7 @@ export const motionMemory=createMotionMemory();
 export function resetMotion(memory=motionMemory){memory.actors.clear();memory.time=-Infinity;memory.hero=null;}
 function blank(key){return {key,family:'',time:-Infinity,seed:0,x:0,y:0,vx:0,vy:0,alive:true,height:100,face:1,faceAt:-Infinity,want:0,wantAt:0,loco:false,locoAt:-Infinity,move:false,moveAt:0,clip:'',clipAt:0,action:'',progress:0,fireAt:-Infinity,
  hit:0,hurt:0,stagger:0,flashAt:-Infinity,kickAt:-Infinity,kickX:0,kickY:0,kickPower:0,hurtAt:-Infinity,restAt:-Infinity,rx:0,ry:0,rt:0,rsx:0,rsy:0,last:still(),
- pose:null,motion:still(),alpha:1,flash:0,ghosts:0,ghostAlpha:0,ghostX:0,ghostY:0,ghostTilt:0,ghostBlend:'source-over',fadePose:null,fadeAlpha:0,fadeMotion:still()};}
+ pose:null,motion:still(),alpha:1,flash:0,ghosts:0,ghostAlpha:0,ghostX:0,ghostY:0,ghostTilt:0,ghostBlend:'source-over',fadePose:null,fadeAlpha:0,fadeMotion:still(),gray:0};}
 // One memory per run: time going backwards (a new run or a restart) clears it; stale actors are pruned past the limit.
 function entry(memory,key,time){
  if(time<memory.time-1e-6)resetMotion(memory);
@@ -88,7 +89,7 @@ function facing(s,want,clear,mode,time){
 function impact(memory,s,actor,time,power,family){
  s.flashAt=s.kickAt=time;s.kickPower=power;
  let dx=0,dy=0;
- if(family==='hero'||family==='npc'){let best=Infinity;for(const o of memory.actors.values()){if((o.family!=='enemy'&&o.family!=='boss')||!o.alive||time-o.time>0.1)continue;const d=(o.x-actor.x)**2+(o.y-actor.y)**2;if(d<best){best=d;dx=actor.x-o.x;dy=actor.y-o.y;}}}
+ if(family!=='enemy'&&family!=='boss'){let best=Infinity;for(const o of memory.actors.values()){if((o.family!=='enemy'&&o.family!=='boss')||!o.alive||time-o.time>0.1)continue;const d=(o.x-actor.x)**2+(o.y-actor.y)**2;if(d<best){best=d;dx=actor.x-o.x;dy=actor.y-o.y;}}}
  else if(memory.hero&&time-memory.hero.time<0.5){dx=actor.x-memory.hero.x;dy=actor.y-memory.hero.y;}
  const length=Math.hypot(dx,dy);
  if(length>1){s.kickX=dx/length;s.kickY=dy/length;}else{s.kickX=-s.face;s.kickY=0;}
@@ -129,6 +130,18 @@ function bossFall(m,t,k){const a=ease(t/0.25)*(1-ease((t-0.25)/0.8)),shake=t<0.4
 // on while the lying frame fades in flat and settles with a small bounce.
 function topple(m,t,fall,k){const a=ease(t/0.08),u=Math.min(1,Math.max(0,(t-0.08)/0.32)),g=u*u;m.offsetX=0;m.offsetY=2*k*g;m.tilt=-0.08*a*(1-g)+fall*0.8*g;m.stretchX=1;m.stretchY=1-0.05*g;}
 function lying(m,t,fall,k){const v=ease((t-0.32)/0.16),hit=t-0.4,b=hit>0?Math.exp(-hit/0.07):0;m.offsetX=0;m.offsetY=hit>0?-2.2*k*Math.exp(-hit/0.08)*Math.abs(Math.sin(hit*26)):0;m.tilt=fall*0.16*(1-v);m.stretchX=1+0.05*b;m.stretchY=1-0.04*b;}
+// Downed allies: casters and keepers topple onto their back (feet on their spot, head behind them) and breathe
+// slowly; Sol sinks flat onto its belly. A revive plays the fall backwards as they rise. Returns how grey the body
+// is (0..1). Reduced effects lays the body down at once and keeps it still. `h` is the body height in pixels.
+function fallen(m,family,actor,time,seed,h,reduced){
+ const rising=!actor.downed&&actor.rise>0,age=actor.downAge||0,drop=family==='sol'?0.26:0.36;
+ const lie=rising?(reduced?1:ease(actor.rise/PARTY.revive.rise)):reduced?1:Math.min(1,(age/drop)**2);
+ const bounce=reduced||rising||age<drop?0:Math.exp(-(age-drop)/0.07)*Math.sin((age-drop)*32);
+ const breath=reduced||rising||age<0.6?0:Math.sin((time/2.8+seed)*6.2832);
+ if(family==='sol'){m.tilt=0.1*lie;m.offsetY=1.5*lie;m.stretchX=1+0.1*lie+0.05*Math.abs(bounce);m.stretchY=1-0.26*lie+0.015*breath;}
+ else{m.tilt=-1.42*lie+0.05*bounce;m.offsetX=0.49*h*Math.sin(1.42*lie);m.offsetY=2*lie;m.stretchX=1+0.06*Math.abs(bounce)+0.018*breath;}
+ return rising?lie:reduced?1:Math.min(1,age/0.3);
+}
 
 // Shared shape of every clip. Returns seconds since a strike's release (or -1) so callers can place smears.
 function shape(m,family,pose,def,actor,p,time,seed,k,speed){
@@ -154,9 +167,10 @@ function overlay(m,s,actor,time,k,reduced){
  if(actor.phaseShift>0)m.offsetX+=Math.sin(time*47)*1.6*k*Math.min(1,actor.phaseShift/0.3);
 }
 function animate(s,family,pose,actor,time,reduced,fresh){
- const m=neutral(s.motion),k=Math.sqrt(s.height/100),name=pose.name||pose.clip,def=ANIMATIONS[pose.asset].clips[name],dead=family!=='npc'&&actor.hp<=0,age=dead?actor.deathAge||0:0,clock=dead?age:time;
- s.pose=pose;s.alpha=1;s.ghosts=0;s.fadeAlpha=0;
- if(dead&&def.fall){
+ const m=neutral(s.motion),k=Math.sqrt(s.height/100),name=pose.name||pose.clip,def=ANIMATIONS[pose.asset].clips[name],down=baseOf(pose.clip)==='downed',dead=!down&&family!=='npc'&&actor.hp<=0,age=dead?actor.deathAge||0:0,clock=dead?age:time;
+ s.pose=pose;s.alpha=1;s.ghosts=0;s.fadeAlpha=0;s.gray=0;
+ if(down)s.gray=fallen(m,family,actor,time,s.seed,s.height,reduced);
+ else if(dead&&def.fall){
   // Hollow death: knocked back, toppling, then the painted lying frame fades in and settles.
   const stand=def.order[0],lie=def.order[def.order.length-1];
   if(age>=0.32&&age<0.44){const c=ease((age-0.32)/0.12);s.fadePose=pose.column===stand?pose:{...pose,column:stand};s.pose=pose.column===lie?pose:{...pose,column:lie};s.fadeAlpha=Math.min(1,(1-c)*1.6);s.alpha=Math.min(1,c*1.6);
@@ -171,7 +185,9 @@ function animate(s,family,pose,actor,time,reduced,fresh){
  }
  // Inertialization: a clip change keeps the previous displacement and lets it settle out with a little overshoot.
  if(fresh){s.rx=s.ry=s.rt=s.rsx=s.rsy=0;s.restAt=-Infinity;s.clip=pose.clip;s.clipAt=time;}
- else if(pose.clip!==s.clip){const l=s.last;s.rx=l.offsetX-m.offsetX;s.ry=l.offsetY-m.offsetY;s.rt=l.tilt-m.tilt;s.rsx=l.stretchX-m.stretchX;s.rsy=l.stretchY-m.stretchY;s.restAt=clock;s.clip=pose.clip;s.clipAt=time;}
+ else if(pose.clip!==s.clip){const l=s.last;s.rx=l.offsetX-m.offsetX;s.ry=l.offsetY-m.offsetY;s.rt=l.tilt-m.tilt;s.rsx=l.stretchX-m.stretchX;s.rsy=l.stretchY-m.stretchY;s.restAt=clock;s.clip=pose.clip;s.clipAt=time;
+  // Reduced effects never blends a pose change (a downed ally simply lies down and later stands).
+  if(reduced)s.rx=s.ry=s.rt=s.rsx=s.rsy=0;}
  const h=s.restAt===-Infinity?0:settle(clock-s.restAt);
  if(h){m.offsetX+=s.rx*h;m.offsetY+=s.ry*h;m.tilt+=s.rt*h;m.stretchX+=s.rsx*h;m.stretchY+=s.rsy*h;}
  Object.assign(s.last,m);
@@ -186,6 +202,8 @@ function animate(s,family,pose,actor,time,reduced,fresh){
 export function partyDisplay(memory,actor,kind,time,reduced=false){
  const s=entry(memory,kind,time),fresh=begin(s,actor,kind,time,PARTY_HEIGHT[kind]),pose=PARTY_POSE[kind];
  if(kind==='hero'){memory.hero=s;const hurt=actor.hurt||0;if(!fresh&&hurt>s.hurt+1e-3)impact(memory,s,actor,time,5,'hero');s.hurt=hurt;}
+ // A hit on the Dawnweaver or Sol is a light hit: a flash and a small knockback, never a pose swap.
+ else{const hit=actor.hit||0;if(!fresh&&hit>s.hit+1e-3)impact(memory,s,actor,time,3,kind);s.hit=hit;}
  let loco=locomotion(s,!!actor.moving,time,fresh),shown=pose(actor,loco);
  // Leaving an action resumes locomotion from what the body is doing now, with no hysteresis gap.
  if(LOCO.has(shown.clip)&&s.action){s.locoAt=time;if(loco!==s.move){s.loco=loco=s.move;shown=pose(actor,loco);}}

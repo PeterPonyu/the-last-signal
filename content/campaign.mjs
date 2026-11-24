@@ -78,26 +78,5 @@ export const NPC_COMBAT={
  guard:{health:240,damage:26,range:200,interval:2,skill:'Shield light'}
 };
 
-export const UPGRADES=[
- {id:'radiance',name:'Radiance',family:'Sunshard',text:'Sunshard damage +28%.',max:3},
- {id:'volley',name:'Twin Dawn',family:'Sunshard',text:'Fire a second Sunshard at 55% power.',max:1},
- {id:'focus',name:'Far Horizon',family:'Sunshard',text:'Sunshard range +90.',max:2},
- {id:'tempo',name:'Quickening Light',family:'Sunshard',text:'Sunshard fire interval −12%.',max:2},
- {id:'edge',name:'Golden Edge',family:'Sunblade',text:'Sunblade and Sunbreak power +25%.',max:3},
- {id:'cleave',name:'Open Road',family:'Sunblade',text:'Sunblade reach +24 and a wider arc.',max:2},
- {id:'flow',name:'Flowing Resolve',family:'Sunblade',text:'Sunblade cooldown −15%; Sunbreak −12%.',max:2},
- {id:'finisher',name:'Dawn’s Answer',family:'Sunblade',text:'Sunblade, Sunbreak +40% below half enemy health.',max:1},
- {id:'resolve',name:'Resolve',family:'Dawn',text:'Maximum health +20. Heal 45.',max:3},
- {id:'stride',name:'Windward Step',family:'Dawn',text:'Move 10% faster; dash cooldown −15%.',max:2},
- {id:'ward',name:'Sheltering Light',family:'Dawn',text:'Gain a 22-point shield every 18s.',max:2},
- {id:'mend',name:'Shared Dawn',family:'Dawn',text:'Dawnweaver heals 8 more, 3s sooner.',max:2}
-];
-export const UPGRADE_THRESHOLDS=[8,22,42,68,100,138,180,230,285,350,425,510,600,700,810,930,1060,1200];
-export function upgradeChoices(run){
- const owned=run.upgrades||{},out=[];
- for(const family of ['Sunshard','Sunblade','Dawn']){
-  const cards=UPGRADES.filter(c=>c.family===family&&(owned[c.id]||0)<c.max);
-  if(cards.length)out.push(cards[(run.level-1)%cards.length]);
- }
- return out;
-}
+// Level-up cards now live in content/answers.mjs; re-exported here for older imports.
+export {UPGRADES,UPGRADE_THRESHOLDS,upgradeChoices} from './answers.mjs';

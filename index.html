@@ -24,7 +24,7 @@
       <p class="eyebrow" data-i18n="landing.eyebrow">An action adventure starring Zeyu</p>
       <h1 id="title" data-i18n-html="landing.title">Let the world<br>hear your <em>answer.</em></h1>
       <p class="lead" data-i18n="landing.lead">The sun has gone dark. Carry the last light across five lands.</p>
-      <div class="start-row"><button id="start" type="button" class="primary" disabled>Loading…</button><p class="facts"><span data-i18n="landing.facts">5 maps · 10 bosses · 25–35 min</span><span data-i18n="landing.devices">Keyboard, mouse, touch or gamepad</span></p></div>
+      <div class="start-row"><button id="start" type="button" class="primary" disabled>Loading…</button><p class="facts"><span data-i18n="landing.facts">5 maps · 10 bosses · 35–45 min</span><span data-i18n="landing.devices">Keyboard, mouse, touch or gamepad</span></p></div>
       <nav class="landing-links"><button id="controls-button" type="button" data-i18n="landing.howTo">How to play</button><button id="world-button" type="button" data-i18n="landing.world">The world</button><button id="character-button" type="button" data-i18n="landing.companions">Companions</button></nav>
       <p class="hero-quote"><span data-i18n="landing.quote">“Then I will make a road.”</span> <cite>— Zeyu</cite></p>
     </div>
@@ -44,8 +44,11 @@
     <div id="stage" class="stage">
       <canvas id="arena" tabindex="0" data-i18n-aria="arena.label" aria-label="Battlefield"></canvas>
       <div class="hud">
-        <div class="vitals"><div class="vitals-row"><span class="who">ZEYU</span><span id="health-number"></span></div><div class="bar"><span id="health-fill"></span></div><div id="party-status" class="party" aria-live="polite"></div></div>
-        <div class="tally"><span id="run-time">0:00</span><span><b id="kills">0</b> <span id="kills-label" data-i18n="hud.freed">freed</span></span></div>
+        <div class="vitals"><div class="vitals-row"><span class="who">ZEYU</span><span id="health-number"></span></div><div class="bar"><span id="health-fill"></span></div><div id="party-status" class="party" aria-live="polite"></div><ol id="party-roster" class="roster" data-i18n-aria="hud.party" aria-label="Party" hidden></ol></div>
+        <div class="hud-side">
+          <div class="tally"><span id="run-time">0:00</span><span><b id="kills">0</b> <span id="kills-label" data-i18n="hud.freed">freed</span></span></div>
+          <div id="rule-chip" class="rule-chip" hidden><span id="rule-icon" class="rule-icon" aria-hidden="true"></span><span class="rule-copy"><span id="rule-name" class="rule-name"></span><span id="rule-phase" class="rule-phase"></span></span></div>
+        </div>
       </div>
       <div class="toasts"><p id="story-line" class="toast story" aria-live="polite"></p><p id="banner" class="toast banner" role="status" aria-atomic="true"></p><p id="rotate-hint" class="toast rotate-hint" data-i18n="rotate.hint" hidden></p></div>
       <aside id="field-guide" class="guide" hidden>

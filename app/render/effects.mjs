@@ -16,6 +16,7 @@ export function selectEffects(effects,camera,reduced,ground){
   for(let i=effects.length-1;i>=0&&selected.length<limit;i--){
     const fx=effects[i];
     if(fx.kind==='impact')continue; // Live hazards own their exact radius and safe center.
+    if(fx.kind.startsWith('gift-'))continue; // Passive gifts draw in their own layer (gift-vfx).
     if(effectLayer(fx.kind)!==layer||fx.age>=fx.life||fx.life<=0)continue;
     if(fx.kind==='solar-lance'){
       const endX=fx.x+Math.cos(fx.angle)*fx.reach,endY=fx.y+Math.sin(fx.angle)*fx.reach;

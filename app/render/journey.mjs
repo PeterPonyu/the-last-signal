@@ -1,5 +1,4 @@
 import {drawCast} from './cast.mjs';
-import {drawWorldDetail} from './raster-details.mjs';
 import {canvasFont} from './typography.mjs';
 import {markerLabel} from './guidance.mjs';
 import {AREAS} from '../../content/game.mjs';
@@ -7,7 +6,7 @@ import {JOURNEY} from '../../content/journey.mjs';
 import {nearbyInteraction,gatewayPrompt} from '../game/journey.mjs';
 import {visibleAt} from './presentation.mjs';
 import {distance} from '../game/geometry.mjs';
-import {glow} from './world.mjs';
+import {glow,drawPiece,kitOf} from './world.mjs';
 import {drawDecal,caption,drawGlyph,lightPillar,alpha,TONES,GROUND} from './decal.mjs';
 
 const TAU=Math.PI*2;
@@ -23,8 +22,11 @@ export function landmarkMotion(kind,time,reduced=false){
 export function drawLandmark(ctx,run,camera,reduced,images){
   const landmark=JOURNEY[run.areaIndex].landmark,m=landmarkMotion(landmark.kind,run.time,reduced);
   if(!visibleAt(landmark,camera,240))return;
-  const index=AREAS[run.areaIndex].detailTheme*4;
-  drawWorldDetail(ctx,images,index,landmark.x,landmark.y+25,190,1,landmark.kind==='bell'?m.swing*0.25:0);
+  const area=AREAS[run.areaIndex],piece=kitOf(area)?.pieces.landmark||{};
+  drawPiece(ctx,images,area,'landmark',landmark.x,landmark.y+25,piece.height||190,{tilt:landmark.kind==='bell'?m.swing*0.25:0,time:run.time,reduced});
+  // Maps with their own landmark art keep their own motion: the crucible's molten light breathes with
+  // its kit light, a small star circles the sky engine; the shared art keeps its clock hands and sun glow.
+  if(piece.sprite){if(area.id==='observatory'){const a=m.orbit*2.2;glow(ctx,landmark.x+Math.cos(a)*62,landmark.y-112+Math.sin(a)*20,14,'#d9ecffaa');}return;}
   if(landmark.kind==='clock'){
     ctx.save();ctx.translate(landmark.x,landmark.y-80);ctx.strokeStyle='#ffe4a0';ctx.lineWidth=3;
     for(const [angle,length]of [[m.hand,27],[m.slowHand,18]]){ctx.beginPath();ctx.moveTo(0,0);ctx.lineTo(Math.cos(angle)*length,Math.sin(angle)*length);ctx.stroke();}ctx.restore();
@@ -68,7 +70,8 @@ export function drawGateway(ctx,run,camera,reduced,guidance=true,scale=1,images,
   const tone=open?TONES.open:TONES.sealed,gy=gate.y+GROUND;
   drawDecal(ctx,gate.x,gy,REACH,tone,{strength:open||near?1:0.7,glint:open,icon:'gate',reduced,time:t,scale});
   ctx.save();ctx.translate(gate.x,gate.y);glow(ctx,0,-40,150,open?'#ffcd6a66':'#8cb5ac1c');
-  drawWorldDetail(ctx,images,open?AREAS[run.areaIndex].detailTheme:AREAS[run.areaIndex].detailTheme*4+2,0,28,200,1,0,open?'openGate':'worldDetails');
+  const area=AREAS[run.areaIndex],art=kitOf(area)?.pieces[open?'open':'gate']||{};
+  drawPiece(ctx,images,area,open?'open':'gate',0,28,art.height||200,{time:run.time,reduced});
   if(open){
     ctx.fillStyle='#e4bc6024';ctx.beginPath();ctx.ellipse(0,-45,59,86,0,0,TAU);ctx.fill();
     if(!reduced){ctx.beginPath();for(let i=0;i<12;i++){const y=15-((t*23+i*13)%150);ctx.rect(Math.sin(i*8.3)*48,y,3,5);}ctx.fillStyle='#ffe3a1aa';ctx.fill();}

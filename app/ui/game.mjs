@@ -1,7 +1,12 @@
-import {CAMPAIGN,upgradeChoices} from '../../content/campaign.mjs';
+import {CAMPAIGN} from '../../content/campaign.mjs';
 import {readGuidance,saveGuidance,guidanceEnabled,completeGuidedRun,guidanceStep,campaignStep,guardState,CHAMPION_HINTS} from './guidance.mjs';
-import {symbolSvg} from '../render/symbols.mjs';
+import {symbolSvg,SYMBOLS} from '../render/symbols.mjs';
 import {createRun,update,requestAbility,chooseUpgrade,advanceArea,interact} from '../game/simulation.mjs';
+import * as answerFeature from '../game/answers.mjs';
+import {answerChoices,rerollAnswers,knows} from '../game/answers.mjs';
+import {ruleStatus} from '../game/environment.mjs';
+import * as giftFeature from '../game/affixes.mjs';
+import {affixName} from '../game/affixes.mjs';
 import {JOURNEY,ENEMY_ROLES} from '../../content/journey.mjs';
 import {nearbyInteraction,gatewayPrompt,objectiveText} from '../game/journey.mjs';
 import {AREAS,DIFFICULTIES,COMBAT} from '../../content/game.mjs';
@@ -12,6 +17,10 @@ import {createAudio} from '../audio/audio.mjs';
 import {createFrameLoop} from './frame-loop.mjs';
 import {computeView} from './viewport.mjs';
 import {createControls} from './controls.mjs';
+import {iconSvg,RULE_ICONS} from './icons.mjs';
+import {cardView,cardMarkup} from './answers-view.mjs';
+import {rosterView,initialOf,createPartyWatch,ruleView,sightAffixes,giftsOf,fitsBanner,learnedSkills,LEARNABLE} from './hud-view.mjs';
+import {readPreferences,savePreferences,stepClock,STEP,GAME_SPEEDS,FRAME_RATES,speedLabel} from './preferences.mjs';
 import {t,tr,language,setLanguage,detectLanguage,onLanguageChange,localiseContext} from '../i18n/index.mjs';
 
 const $=id=>document.getElementById(id);
@@ -25,24 +34,58 @@ const stepText=step=>step.stage<5?t('hud.stepOf',{n:step.number})+' · '+t('hud.
 const stepList=()=>'<ol class="step-list">'+[0,1,2,3,4].map(i=>'<li>'+esc(t('hud.stage'+i))+'</li>').join('')+'</ol>';
 // Key hints follow the active input: F on keyboards, LB on gamepads, none on touch.
 const keyHint=label=>inputMode==='touch'?withoutKey(label):inputMode==='gamepad'?String(label).replace(/(\s·\s)F$/,'$1LB'):label;
+// Restarts a short CSS animation on an element (a lock shake, an unlock glow, a hit flash).
+function flash(element,name,ms){element.classList.remove(name);void element.offsetWidth;element.classList.add(name);clearTimeout(element['_'+name]);element['_'+name]=setTimeout(()=>element.classList.remove(name),ms);}
 
 const canvas=$('arena'),ctx=localiseContext(canvas.getContext('2d'),value=>keyHint(value)),stage=$('stage'),modal=$('modal');
 const safeStorage={getItem:key=>localStorage.getItem(key),setItem:(key,value)=>localStorage.setItem(key,value)};
 let images={},travelLoading=false,prefetchedArea=-1;
 let guidance=readGuidance(safeStorage),guidanceVisible=guidanceEnabled(guidance),guideKey='',guidePinned=false,guideOpenUntil=0;
+let preferences=readPreferences(safeStorage);
 let run=null,accumulated=0,bannerUntil=0,savedMode=null,camera=null,selectedDifficulty='normal',renderElapsed=1/60;
-let view=computeView(1200,680),reservedDirty=true,reserved=[],currentDialog=null,journalArea=0,returnTo=null;
-const seenEnemies=new Set();
+let view=computeView(1200,680),reservedDirty=true,reserved=[],currentDialog=null,journalArea=0,returnTo=null,dialogScene=null;
+const seenEnemies=new Set(),seenAffixes=new Set(),seenGiftBanners=new Set(),learned=new Set(),partyWatch=createPartyWatch(),joinedAllies=new Set();
 let autoPowers=true,music=false,effects=false,reduced=matchMedia('(prefers-reduced-motion: reduce)').matches,inputMode='desktop',stageSmall=false;
 let audioStatus='';
 const audioText=message=>{const key='audio.'+message,value=t(key);return value===key?message:value;};
 const audio=createAudio(message=>{audioStatus=message;text('audio-status',audioText(message));});
-const loop=createFrameLoop(frame);
+const loop=createFrameLoop(frame,globalThis,{rate:preferences.frameRate});
 const ABILITIES=[['slash','slash'],['dash','dash'],['pulse','pulse'],['sunbreak','sunbreak'],['solarLance','lance']];
 const PAD_LABELS={slash:'A',dash:'B',pulse:'X',sunbreak:'Y',solarLance:'RB'},KEY_LABELS={slash:'J',dash:'␣',pulse:'E',sunbreak:'Q',solarLance:'R'};
-const HELP_NOTES=['help.note1','help.note2','help.note3','help.note4','help.note5','help.note6','help.note7','help.note8'];
+const HELP_NOTES=['help.note1','help.note2','help.note3','help.note4','help.note5','help.note6','help.note7','help.note8','help.note9','help.note10','help.note11','help.note12','help.note13'];
 const SYMBOL_CARDS=['beacon','lantern','guide','gate','danger','hero','boss','scenery'];
 const GUARD_LABELS={up:'hud.guard',enraged:'hud.enraged',exposed:'hud.exposed',down:'hud.guardDown'};
+const LOCKED_MODES=['upgrade','area-clear','victory','defeat'];
+const abilityElements=Object.fromEntries(ABILITIES.map(([name])=>[name,[...document.querySelectorAll(`[data-ability="${name}"]`)]]));
+document.body.classList.toggle('reduced-effects',reduced);
+
+/* ---------- Audio scenes and interface sounds ---------- */
+// The frame loop sleeps in menus, so every scene change reports itself here as well.
+function audioScene(){
+  if(!run)return 'title';
+  if(run.mode==='upgrade')return 'answer';
+  if(run.mode==='area-clear')return 'clear';
+  if(run.mode==='victory'||run.mode==='defeat')return run.mode;
+  if(modal.open)return dialogScene||'pause';
+  return 'play';
+}
+function syncAudio(){audio.sync(run,audioScene());}
+let quietFocus=false,hovered=null,hoverAt=0;
+const inMenu=element=>!!element?.closest?.('#modal,#landing,.topbar');
+function focusQuietly(element){quietFocus=true;try{element?.focus({preventScroll:true});}finally{quietFocus=false;}}
+function hoverSound(element){
+  if(element===hovered)return;hovered=element;
+  const now=performance.now();if(now-hoverAt<60)return;hoverAt=now;audio.sound('ui-hover');
+}
+document.addEventListener('focusin',e=>{if(!quietFocus&&inMenu(e.target)&&e.target.matches('button,select,input'))hoverSound(e.target);});
+document.addEventListener('pointerover',e=>{
+  if(e.pointerType!=='mouse')return;
+  const element=e.target.closest?.('button,select,label');
+  if(element&&inMenu(element)&&!element.disabled)hoverSound(element);else if(!element)hovered=null;
+});
+// Answer cards and reroll speak through their own game sounds.
+document.addEventListener('click',e=>{const button=e.target.closest?.('button');if(button&&inMenu(button)&&!button.disabled&&!('quiet' in button.dataset))audio.sound(button.id==='close-modal'?'ui-back':'ui-select');},true);
+document.addEventListener('change',e=>{if(inMenu(e.target))audio.sound('ui-select');});
 
 /* ---------- Language ---------- */
 function applyStatic(){
@@ -51,12 +94,13 @@ function applyStatic(){
   for(const element of document.querySelectorAll('[data-i18n-aria]'))element.setAttribute('aria-label',t(element.dataset.i18nAria));
   document.title=t('page.title');document.querySelector('meta[name=description]')?.setAttribute('content',t('page.description'));
   for(const button of document.querySelectorAll('[data-lang]'))button.setAttribute('aria-pressed',String(button.dataset.lang===language()));
+  for(const element of document.querySelectorAll('[data-ability].locked'))element.title=t('hud.lockedHint');
   if(audioStatus)text('audio-status',audioText(audioStatus));
   updateStartButton();updateFullscreenLabel();updateKeyLabels();
 }
 function chooseLanguage(next){
   if(next===language()||!setLanguage(next,safeStorage))return;
-  applyStatic();guideKey='';$('route-progress').dataset.area='';
+  applyStatic();guideKey='';ruleKey='';$('route-progress').dataset.area='';
   if(modal.open&&currentDialog)currentDialog();
   if(run)render();
 }
@@ -72,15 +116,18 @@ function measureView(){
 function measureReserved(){
   // Page overlays that sit on top of the battlefield; the minimap avoids these corners.
   const box=stage.getBoundingClientRect(),scaleX=view.width/box.width,scaleY=view.height/box.height,list=[];
+  // The HUD columns come first: the guide and the notices are placed below them (CSS variables).
+  const vitals=document.querySelector('.vitals').getBoundingClientRect(),side=document.querySelector('.hud-side').getBoundingClientRect();
+  const leftBottom=vitals.height?vitals.bottom-box.top:0,sideBottom=side.height?side.bottom-box.top:0,hudBottom=Math.max(leftBottom,sideBottom);
+  stage.style.setProperty('--hud-side-bottom',Math.round(sideBottom)+'px');stage.style.setProperty('--hud-bottom',Math.round(hudBottom)+'px');
   const add=element=>{if(!element||element.hidden||element.offsetParent===null)return;const r=element.getBoundingClientRect();if(!r.width||!r.height)return;
     list.push({left:(r.left-box.left)*scaleX,top:(r.top-box.top)*scaleY,right:(r.right-box.left)*scaleX,bottom:(r.bottom-box.top)*scaleY});};
-  add(document.querySelector('.vitals'));add(document.querySelector('.tally'));add($('field-guide'));add($('boss-hud'));
+  add(document.querySelector('.vitals'));add(document.querySelector('.tally'));add($('rule-chip'));add($('field-guide'));add($('boss-hud'));
   for(const toast of document.querySelectorAll('.toast'))if(toast.textContent)add(toast);
   if(inputMode==='touch'&&!document.body.classList.contains('portrait')){add($('stick'));add(document.querySelector('.pad'));add($('touch-interact'));}
   reserved=list;reservedDirty=false;
-  // Top corners start just below the HUD row; very small play areas get a smaller map.
-  const hud=document.querySelector('.vitals').getBoundingClientRect();
-  view.minimapTop=hud.height?(hud.bottom-box.top)*scaleY+12:undefined;
+  // Top corners start just below the HUD boxes; very small play areas get a smaller map.
+  view.minimapTop=hudBottom?hudBottom*scaleY+12:undefined;
   view.minimapSize=box.height<300?0.7:box.height<420?0.85:1;
 }
 function updateOrientation(){
@@ -88,6 +135,8 @@ function updateOrientation(){
   if(document.body.classList.contains('portrait')!==portrait){document.body.classList.toggle('portrait',portrait);reservedDirty=true;}
 }
 new ResizeObserver(()=>{measureView();if(run)loop.wake();}).observe(stage);
+// The roster and rule chip change the HUD's height: re-measure what the minimap and notices avoid.
+new ResizeObserver(()=>{reservedDirty=true;}).observe(document.querySelector('.hud'));
 addEventListener('resize',()=>{updateOrientation();measureView();if(run)loop.wake();});
 updateOrientation();
 
@@ -98,8 +147,16 @@ function nearestEnemyAim(range=420){
   for(const e of run.enemies){if(e.hp<=0||e.warning>0)continue;const d=Math.hypot(e.x-p.x,e.y-p.y);if(d<bestDistance){best=e;bestDistance=d;}}
   return best?{x:best.x-p.x,y:best.y-p.y}:null;
 }
+let deniedAt=0;
+// A locked skill answers a press with a short shake of its buttons.
+function denyAbility(name){
+  const now=performance.now();if(now-deniedAt<300)return;deniedAt=now;
+  for(const element of abilityElements[name]||[])flash(element,'denied',340);
+  audio.sound('ui-back');
+}
 function ability(name,aim){
   if(run?.mode!=='running')return;
+  if(!knows(run,name)){denyAbility(name);return;}
   if(name==='pulse'){requestAbility(run,'pulse');return;}
   const direction=aim||(name==='dash'?controls.movement():null)||controls.aim()||(inputMode!=='desktop'&&name!=='dash'?nearestEnemyAim(name==='solarLance'?COMBAT.solarLance.range:420):null);
   requestAbility(run,name,direction&&(direction.x||direction.y)?direction:null);
@@ -119,10 +176,12 @@ const menu={
   },
   activate(){
     const active=document.activeElement,items=menuFocusables();
-    if(active&&items.includes(active)){if(active.type==='checkbox'||active.type==='radio'){active.click();}else active.click();return;}
+    if(active&&items.includes(active)){active.click();return;}
     (modal.open?modal.querySelector('.primary'):$('start'))?.click();
   },
-  back(){if(modal.open)closeDialog();}
+  back(){if(modal.open&&!LOCKED_MODES.includes(run?.mode)){audio.sound('ui-back');closeDialog();}},
+  // Gamepad Y: the answer screen's reroll.
+  alt(){if(modal.open&&run?.mode==='upgrade')rerollOffer();}
 };
 const controls=createControls({touch:$('touch-controls'),stickZone:$('stick-zone'),stick:$('stick'),events:{
   isPlaying:()=>run?.mode==='running'&&!modal.open,
@@ -141,59 +200,71 @@ inputMode=controls.mode;
 function updateKeyLabels(){
   for(const [name] of ABILITIES){const key=document.querySelector(`.ability[data-ability="${name}"] kbd`);if(key)key.textContent=inputMode==='gamepad'?PAD_LABELS[name]:name==='dash'?t('help.dash.k'):KEY_LABELS[name];}
   const interactKey=document.querySelector('#interact-button kbd');if(interactKey)interactKey.textContent=inputMode==='gamepad'?'LB':'F';
+  const rerollKey=modal.querySelector('.answer-reroll kbd');if(rerollKey)rerollKey.textContent=inputMode==='gamepad'?'Y':'R';
+  const hint=modal.querySelector('.answer-hint');if(hint)hint.textContent=answerHint();
 }
 
 /* ---------- Dialogs ---------- */
 function clearInput(){controls.clear();if(run)run.inputBuffer=null;}
 function closeDialog(){
-  if(['upgrade','area-clear','victory','defeat'].includes(run?.mode))return;
+  if(LOCKED_MODES.includes(run?.mode))return;
   if(returnTo&&run&&modal.open){const target=returnTo;returnTo=null;show(target);return;}
-  returnTo=null;modal.close();currentDialog=null;
+  returnTo=null;modal.close();currentDialog=null;dialogScene=null;
   if(run&&savedMode&&run.mode==='paused')run.mode=savedMode;
   savedMode=null;clearInput();accumulated=0;
   if(run?.mode==='running')canvas.focus({preventScroll:true});
-  loop.wake();
+  syncAudio();loop.wake();
 }
-function dialog(kicker,title,body,actions,{locked=false,wide=false}={}){
+// scene: what the music plays under this dialog ('pause' by default during a run, 'dialogue' for a voice on the road).
+function dialog(kicker,title,body,actions,{locked=false,wide=false,answers=false,scene=null}={}){
   if(['running','ending'].includes(run?.mode)){savedMode=run.mode;run.mode='paused';}
-  clearInput();
-  modal.classList.toggle('wide',wide);
+  clearInput();dialogScene=scene;
+  modal.classList.toggle('wide',wide);modal.classList.toggle('answers',answers);
   $('modal-kicker').textContent=kicker;$('modal-title').textContent=title;$('modal-body').innerHTML=body;
   $('modal-actions').replaceChildren();$('close-modal').hidden=locked;
   for(const action of actions){
     const button=document.createElement('button');button.type='button';button.className=action.className||'quiet';
     if(action.html)button.innerHTML=action.html;else button.textContent=action.label;
+    if(action.quiet)button.dataset.quiet='';
     button.addEventListener('click',action.action);$('modal-actions').append(button);
   }
-  if(!modal.open)modal.showModal();
+  if(!modal.open){quietFocus=true;try{modal.showModal();}finally{quietFocus=false;}}
   const first=modal.querySelector('.modal-actions .primary')||modal.querySelector('.modal-actions button');
-  if(inputMode!=='touch')first?.focus({preventScroll:true});
-  loop.wake();
+  if(inputMode!=='touch')focusQuietly(first);
+  syncAudio();loop.wake();
 }
 function show(builder){currentDialog=builder;builder();}
 function settingsMarkup(){
+  const option=(value,label)=>'<option value="'+value+'">'+esc(label)+'</option>';
   return '<div class="settings">'+
     '<label class="toggle"><input id="auto-powers-setting" type="checkbox"> '+esc(t('settings.autoPowers'))+'</label>'+
     '<label class="toggle"><input id="music-setting" type="checkbox"> '+esc(t('settings.music'))+'</label>'+
     '<label class="toggle"><input id="sound-setting" type="checkbox"> '+esc(t('settings.sound'))+'</label>'+
     '<label class="toggle"><input id="effects-setting" type="checkbox"> '+esc(t('settings.reduced'))+'</label>'+
-    '<label class="select">'+esc(t('settings.guidance'))+'<select id="guidance-setting"><option value="auto">'+esc(t('settings.guidance.auto'))+'</option><option value="on">'+esc(t('settings.guidance.on'))+'</option><option value="off">'+esc(t('settings.guidance.off'))+'</option></select></label>'+
-    '<label class="select">'+esc(t('lang.label'))+'<select id="language-setting"><option value="en" lang="en">English</option><option value="zh" lang="zh-CN">中文</option></select></label>'+
+    '<label class="select"><span>'+esc(t('settings.speed'))+'</span><select id="speed-setting">'+GAME_SPEEDS.map(speed=>option(speed,speedLabel(speed))).join('')+'</select></label>'+
+    '<label class="select"><span>'+esc(t('settings.fps'))+'</span><select id="fps-setting">'+FRAME_RATES.map(rate=>option(rate,t(rate?'settings.fps.'+rate:'settings.fps.display'))).join('')+'</select></label>'+
+    '<label class="select"><span>'+esc(t('settings.guidance'))+'</span><select id="guidance-setting"><option value="auto">'+esc(t('settings.guidance.auto'))+'</option><option value="on">'+esc(t('settings.guidance.on'))+'</option><option value="off">'+esc(t('settings.guidance.off'))+'</option></select></label>'+
+    '<label class="select"><span>'+esc(t('lang.label'))+'</span><select id="language-setting"><option value="en" lang="en">English</option><option value="zh" lang="zh-CN">中文</option></select></label>'+
   '</div><p id="guidance-save-note" class="fine-print"></p>';
 }
+function savedNote(saved){if($('guidance-save-note'))$('guidance-save-note').textContent=t(saved?'settings.saved':'settings.notSaved');}
 function wireSettings(){
   $('auto-powers-setting').checked=autoPowers;$('auto-powers-setting').onchange=e=>{autoPowers=e.target.checked;if(run)run.autoPowers=autoPowers;};
   $('music-setting').checked=music;$('sound-setting').checked=effects;$('effects-setting').checked=reduced;
-  $('music-setting').onchange=async e=>{music=await audio.setMusic(e.target.checked);if($('music-setting'))$('music-setting').checked=music;};
-  $('sound-setting').onchange=async e=>{effects=await audio.setEffects(e.target.checked);if($('sound-setting'))$('sound-setting').checked=effects;audio.sound('upgrade');};
-  $('effects-setting').onchange=e=>{reduced=e.target.checked;loop.wake();};
+  $('music-setting').onchange=async e=>{music=await audio.setMusic(e.target.checked);if($('music-setting'))$('music-setting').checked=music;syncAudio();};
+  $('sound-setting').onchange=async e=>{effects=await audio.setEffects(e.target.checked);if($('sound-setting'))$('sound-setting').checked=effects;syncAudio();audio.sound('ui-select');};
+  $('effects-setting').onchange=e=>{reduced=e.target.checked;document.body.classList.toggle('reduced-effects',reduced);loop.wake();};
+  // Game speed scales real time into the fixed simulation step; the frame rate only changes how often it is drawn.
+  $('speed-setting').value=String(preferences.speed);
+  $('speed-setting').onchange=e=>{const speed=Number(e.target.value);if(!GAME_SPEEDS.includes(speed))return;preferences={...preferences,speed};savedNote(savePreferences(safeStorage,preferences));};
+  $('fps-setting').value=String(preferences.frameRate);
+  $('fps-setting').onchange=e=>{const rate=Number(e.target.value);if(!FRAME_RATES.includes(rate))return;preferences={...preferences,frameRate:rate};loop.setRate(rate);savedNote(savePreferences(safeStorage,preferences));};
   $('guidance-setting').value=guidance.mode;$('guidance-setting').onchange=e=>setGuidanceMode(e.target.value);
   $('language-setting').value=language();$('language-setting').onchange=e=>chooseLanguage(e.target.value);
 }
 function setGuidanceMode(mode){
   guidance={...guidance,mode};guidanceVisible=guidanceEnabled(guidance);guideKey='';reservedDirty=true;
-  const saved=saveGuidance(safeStorage,guidance);
-  if($('guidance-save-note'))$('guidance-save-note').textContent=t(saved?'settings.saved':'settings.notSaved');
+  savedNote(saveGuidance(safeStorage,guidance));
   if($('guidance-setting'))$('guidance-setting').value=mode;
   renderGuidance();loop.wake();
 }
@@ -210,28 +281,42 @@ function showStart(){
 }
 function showHelp(){
   const icon=name=>'<span class="mini-icon" aria-hidden="true">'+symbolSvg(name)+'</span>';
-  const row=(action,k,touch,pad)=>'<tr><td>'+esc(action)+'</td><td class="col-k">'+esc(k)+'</td><td class="col-t">'+(touch.startsWith('<')?touch:esc(touch))+'</td><td class="col-g">'+esc(pad)+'</td></tr>';
+  const lock='<span class="mini-icon lock-mini" title="'+esc(t('hud.lockedHint'))+'">'+iconSvg('lock')+'</span>';
+  const row=(action,k,touch,pad,learned=false)=>'<tr><td>'+esc(action)+(learned?' '+lock:'')+'</td><td class="col-k">'+esc(k)+'</td><td class="col-t">'+(touch.startsWith('<')?touch:esc(touch))+'</td><td class="col-g">'+esc(pad)+'</td></tr>';
   const body='<table class="controls-table"><thead><tr><th>'+esc(t('help.action'))+'</th><th class="col-k">'+esc(t('help.keyboard'))+'</th><th class="col-t">'+esc(t('help.touch'))+'</th><th class="col-g">'+esc(t('help.gamepad'))+'</th></tr></thead><tbody>'+
     row(t('help.move'),t('help.move.k'),t('help.move.t'),t('help.move.g'))+
     row(t('ab.slash'),t('help.slash.k'),icon('slash'),'A')+
     row(t('ab.dash'),t('help.dash.k'),icon('dash'),'B')+
-    row(t('ab.pulse'),'E',icon('pulse'),'X')+
-    row(t('ab.sunbreak'),'Q',icon('sunbreak'),'Y')+
-    row(t('ab.solarLance'),t('help.lance.k'),icon('lance'),'RB / RT')+
+    row(t('ab.pulse'),'E',icon('pulse'),'X',true)+
+    row(t('ab.sunbreak'),'Q',icon('sunbreak'),'Y',true)+
+    row(t('ab.solarLance'),t('help.lance.k'),icon('lance'),'RB / RT',true)+
     row(t('help.interact'),'F',t('help.interact.t'),'LB')+
+    row(t('help.choose'),t('help.choose.k'),t('help.choose.t'),t('help.choose.g'))+
+    row(t('help.reroll'),t('help.reroll.k'),t('help.reroll.t'),t('help.reroll.g'))+
     row(t('help.pause'),t('help.pause.k'),'☰','Start')+
   '</tbody></table><p class="steps-intro">'+esc(t('help.steps'))+'</p>'+stepList()+
     '<ul class="notes">'+HELP_NOTES.map(key=>'<li>'+esc(t(key))+'</li>').join('')+'</ul>';
   dialog(t('help.kicker'),t('help.title'),body,[{label:t('guide.symbols'),action:()=>show(showSymbols)},{label:t('help.ok'),className:'primary',action:closeDialog}],{wide:true});
 }
 function showSymbols(){
-  const cards=SYMBOL_CARDS.map(kind=>'<li class="symbol-card"><div class="symbol-illustration symbol-'+kind+'">'+symbolSvg(kind)+'</div><div><h3>'+esc(t('sym.'+kind+'.name'))+'</h3><p>'+esc(t('sym.'+kind+'.text'))+'</p></div></li>').join('');
+  const card=(kind,art)=>'<li class="symbol-card"><div class="symbol-illustration symbol-'+kind+'">'+art+'</div><div><h3>'+esc(t('sym.'+kind+'.name'))+'</h3><p>'+esc(t('sym.'+kind+'.text'))+'</p></div></li>';
+  // The party, map rules, enemy gifts and locked skills are page signs drawn with the page icons.
+  const rule=run?ruleView(ruleStatus(run),run.areaIndex):null;
+  const signs=[['party','party'],['rule',rule?.icon||RULE_ICONS[0]],['affix','affix'],['locked','lock']];
+  const cards=SYMBOL_CARDS.map(kind=>card(kind,symbolSvg(kind))).join('')+signs.map(([kind,icon])=>card(kind,iconSvg(icon))).join('');
   dialog(t('sym.kicker'),t('sym.title'),'<p>'+esc(t('sym.intro'))+'</p><ul class="symbol-legend">'+cards+'</ul><p class="fine-print">'+esc(t('sym.note'))+'</p>',[{label:t('common.back'),className:'primary',action:closeDialog}],{wide:true});
 }
 function showWorld(){dialog(t('world.kicker'),t('world.title'),t('world.body'),[{label:t('common.back'),className:'primary',action:closeDialog}]);}
 function showCompanions(){
-  const panel=(image,alt,name,body)=>'<div class="character-panel">'+(image?'<img src="'+image+'" alt="'+esc(alt)+'">':'<div></div>')+'<div><h3>'+esc(name)+'</h3><p>'+esc(body)+'</p></div></div>';
-  dialog(t('comp.kicker'),t('comp.title'),panel('assets/zeyu-golden.png',t('comp.zeyu.name'),t('comp.zeyu.name'),t('comp.zeyu.text'))+panel('assets/dawnweaver.png',t('comp.dawn.name'),t('comp.dawn.name'),t('comp.dawn.text'))+panel('',t('comp.sol.name'),t('comp.sol.name'),t('comp.sol.text')),
+  const panel=(art,name,body)=>'<div class="character-panel">'+art+'<div><h3>'+esc(name)+'</h3><p>'+esc(body)+'</p></div></div>';
+  const picture=(image,alt)=>'<img src="'+image+'" alt="'+esc(alt)+'">';
+  const emblem=(icon,color)=>'<div class="character-emblem" aria-hidden="true"><span style="--c:'+color+'">'+iconSvg(icon)+'</span></div>';
+  dialog(t('comp.kicker'),t('comp.title'),
+    panel(picture('assets/zeyu-golden.png',t('comp.zeyu.name')),t('comp.zeyu.name'),t('comp.zeyu.text'))+
+    panel(picture('assets/dawnweaver.png',t('comp.dawn.name')),t('comp.dawn.name'),t('comp.dawn.text'))+
+    panel(emblem('comet','#ffba65'),t('comp.sol.name'),t('comp.sol.text'))+
+    panel(emblem('party','#bfe3c4'),t('comp.recruits.name'),t('comp.recruits.text'))+
+    '<p class="fine-print">'+esc(t('comp.note'))+'</p>',
     [{label:t('common.back'),className:'primary',action:closeDialog}]);
 }
 // Only ever pauses: blur and tab switches call this too, so it must never resume the game.
@@ -240,27 +325,62 @@ function pause(){
   if(!run||!['running','ending'].includes(run.mode)||modal.open)return;
   show(pauseMenu);
 }
+// The map rule as the pause menu explains it: icon, name, side and what it does.
+function ruleLine(){
+  const rule=run?ruleView(ruleStatus(run),run.areaIndex):null;if(!rule)return '';
+  return '<p class="pause-rule" data-phase="'+rule.phase+'"'+(rule.color?' style="--accent:'+rule.color+'"':'')+'><span class="pause-rule-icon" aria-hidden="true">'+iconSvg(rule.icon,'roots')+'</span><span><strong>'+esc(tr(rule.name))+' · '+esc(t(rule.phase==='kind'?'hud.ruleKind':'hud.ruleHostile'))+'</strong>'+(rule.text?'<span>'+esc(tr(rule.text))+'</span>':'')+'</span></p>';
+}
 function pauseMenu(){
   returnTo=null;const area=AREAS[run.areaIndex];
-  dialog(t('pause.kicker',{chapter:area.chapter}),tr(area.name),'<p class="pause-step"><strong>'+esc(stepText(campaignStep(run)))+'</strong><span>'+esc(keyHint(tr(objectiveText(run))))+'</span></p>'+settingsMarkup()+(audioStatus?'<p class="fine-print">'+esc(audioText(audioStatus))+'</p>':''),[
+  dialog(t('pause.kicker',{chapter:area.chapter}),tr(area.name),'<p class="pause-step"><strong>'+esc(stepText(campaignStep(run)))+'</strong><span>'+esc(keyHint(tr(objectiveText(run))))+'</span></p>'+ruleLine()+settingsMarkup()+(audioStatus?'<p class="fine-print">'+esc(audioText(audioStatus))+'</p>':''),[
     {label:t('pause.resume'),className:'primary',action:closeDialog},
     {label:t('pause.journal'),action:()=>{returnTo=pauseMenu;show(journal);}},{label:t('pause.controls'),action:()=>{returnTo=pauseMenu;show(showHelp);}},{label:t('pause.symbols'),action:()=>{returnTo=pauseMenu;show(showSymbols);}},
     {label:t('pause.restart'),action:startRun},{label:t('pause.quit'),action:home}
   ]);wireSettings();
 }
-function upgrade(){
+
+/* ---------- Answers of the Light ---------- */
+// The cards wait a moment before they accept a choice, so a key or button held from combat
+// (Space, R, a mashed attack) cannot pick or reroll by accident.
+let answerArmed=false,answerTimer=0;const rerollSpent=new Set();
+const answerHint=()=>t(inputMode==='touch'?'up.hint.touch':inputMode==='gamepad'?'up.hint.pad':'up.hint');
+// Whether the current map still has a reroll: asked of the answers feature (canReroll) when it
+// offers the question, otherwise offered until a reroll is refused on this map.
+function rerollAvailable(){
+  if(!run)return false;
+  if(typeof answerFeature.canReroll==='function')return !!answerFeature.canReroll(run);
+  return !rerollSpent.has(run.areaIndex);
+}
+function armAnswers(row,delay){
+  clearTimeout(answerTimer);answerArmed=false;row.classList.remove('armed');
+  answerTimer=setTimeout(()=>{answerArmed=true;row.classList.add('armed');},reduced?Math.min(delay,250):delay);
+}
+function upgrade(rerolled=false){
   currentDialog=upgrade;
-  dialog(t('up.kicker'),t('up.title'),'<p>'+esc(t('up.hint'))+'</p><div class="upgrade-row" id="upgrade-row"></div>',[],{locked:true});
-  const row=$('upgrade-row');
-  upgradeChoices(run).forEach((card,index)=>{const button=document.createElement('button');button.type='button';button.className='upgrade-card';
-    button.innerHTML='<strong>'+(index+1)+' · '+esc(tr(card.name))+'</strong><small>'+esc(tr(card.family))+'</small><small>'+esc(tr(card.text))+'</small>';
-    button.onclick=()=>selectUpgrade(card.id);row.append(button);});
-  if(inputMode!=='touch')row.firstElementChild?.focus({preventScroll:true});
+  const views=answerChoices(run).map(card=>cardView(card,run));
+  const actions=rerollAvailable()?[{html:iconSvg('reroll')+'<span>'+esc(t('up.reroll'))+'</span><kbd>'+(inputMode==='gamepad'?'Y':'R')+'</kbd>',className:'quiet answer-reroll',quiet:true,action:rerollOffer}]:[];
+  dialog(t('up.kicker'),t('up.title'),'<p class="answer-hint">'+esc(answerHint())+'</p><div class="answer-row" id="answer-row" role="group"></div>',actions,{locked:true,answers:true,scene:'answer'});
+  const row=$('answer-row');row.setAttribute('aria-label',t('up.title'));
+  views.forEach((card,index)=>{
+    const button=document.createElement('button');button.type='button';button.className='answer-card '+card.rarity+' kind-'+card.kind;
+    button.style.setProperty('--i',index);button.dataset.quiet='';button.innerHTML=cardMarkup(card,index,{t,tr,esc});
+    button.onclick=()=>selectUpgrade(card.id);row.append(button);
+  });
+  armAnswers(row,rerolled?240:460);
+  if(inputMode!=='touch')focusQuietly(row.firstElementChild);
 }
 function selectUpgrade(choice){
-  if(!chooseUpgrade(run,choice))return;
-  modal.close();currentDialog=null;savedMode=null;clearInput();accumulated=0;canvas.focus({preventScroll:true});loop.wake();
+  if(!answerArmed||!choice||!chooseUpgrade(run,choice))return;
+  clearTimeout(answerTimer);answerArmed=false;
+  modal.close();currentDialog=null;dialogScene=null;savedMode=null;clearInput();accumulated=0;canvas.focus({preventScroll:true});syncAudio();loop.wake();
 }
+function rerollOffer(){
+  if(run?.mode!=='upgrade'||!answerArmed||!rerollAvailable())return;
+  if(rerollAnswers(run)===false){rerollSpent.add(run.areaIndex);upgrade(true);return;}
+  if(!run.events.includes('reroll'))audio.sound('reroll');
+  consumeEvents();upgrade(true);
+}
+
 function routeClear(){
   currentDialog=routeClear;
   const area=AREAS[run.areaIndex],result=run.areaResults.at(-1),story=JOURNEY[run.areaIndex],next=AREAS[run.areaIndex+1];
@@ -269,7 +389,7 @@ function routeClear(){
     [{label:t('clear.continue',{next:tr(next.name)}),className:'primary',action:async()=>{
       if(travelLoading)return;travelLoading=true;const button=$('modal-actions').querySelector('button');button.disabled=true;button.textContent=t('clear.loading');
       try{await loadAreaAssets(images,run.areaIndex+1);}catch{travelLoading=false;button.disabled=false;button.textContent=t('clear.retry');return;}
-      travelLoading=false;if(!advanceArea(run))return;modal.close();currentDialog=null;savedMode=null;clearInput();accumulated=0;canvas.focus({preventScroll:true});announceArea();loop.wake();
+      travelLoading=false;if(!advanceArea(run))return;modal.close();currentDialog=null;dialogScene=null;savedMode=null;clearInput();accumulated=0;canvas.focus({preventScroll:true});announceArea();syncAudio();loop.wake();
     }}],{locked:true});
 }
 let lastRecordSaved=true;
@@ -294,7 +414,7 @@ function interactNearby(){
   // A chosen road speaks through the story line, so it needs no second banner.
   const result=interact(run);if(!result||result.kind==='route')return;
   if(result.kind==='dialogue'){
-    const builder=()=>dialog(t('npc.kicker'),tr(result.title),'<p>'+esc(tr(result.text))+'</p><p class="fine-print">'+esc(t('npc.next',{action:keyHint(tr(objectiveText(run)))}))+'</p>',[{label:t('npc.continue'),className:'primary',action:closeDialog}]);
+    const builder=()=>dialog(t('npc.kicker'),tr(result.title),'<p>'+esc(tr(result.text))+'</p><p class="fine-print">'+esc(t('npc.next',{action:keyHint(tr(objectiveText(run)))}))+'</p>',[{label:t('npc.continue'),className:'primary',action:closeDialog}],{scene:'dialogue'});
     show(builder);
   }
 }
@@ -313,13 +433,14 @@ function journal(){
 
 /* ---------- Run lifecycle ---------- */
 function startRun(){
-  modal.close();currentDialog=null;savedMode=null;seenEnemies.clear();
+  modal.close();currentDialog=null;dialogScene=null;savedMode=null;seenEnemies.clear();seenAffixes.clear();seenGiftBanners.clear();rerollSpent.clear();joinedAllies.clear();
   run=createRun(Date.now(),selectedDifficulty);run.autoPowers=autoPowers;camera=null;clearInput();prefetchedArea=-1;journalArea=0;
+  learned.clear();for(const name of learnedSkills(run,knows))learned.add(name);partyWatch.reset(run);rosterKey='';ruleKey='';
   guidanceVisible=guidanceEnabled(guidance);guideKey='';
   document.body.classList.add('playing');$('landing').hidden=true;$('game').hidden=false;$('status').textContent='';
   updateOrientation();measureView();reservedDirty=true;showRotateHint();
   accumulated=0;canvas.focus({preventScroll:true});text('banner','');bannerQueue.length=0;bannerUntil=0;announceArea();
-  loop.stop();loop.wake();
+  loop.stop();syncAudio();loop.wake();
 }
 // Banners stay up for at least BANNER_MIN seconds; later ones wait in a short queue (and
 // expire there), so a step change is not replaced by the boss that arrives in the same moment.
@@ -341,8 +462,8 @@ function nextBanner(){
 function announceArea(){const area=AREAS[run.areaIndex];announce(t('ann.area',{chapter:area.chapter,name:tr(area.name)}),4);}
 const activeBossName=()=>tr(run.enemies.find(e=>e.boss&&e.hp>0)?.bossName||AREAS[run.areaIndex].boss);
 function home(){
-  run=null;modal.close();currentDialog=null;savedMode=null;clearInput();bannerQueue.length=0;
-  loop.stop();audio.sync(null);
+  run=null;modal.close();currentDialog=null;dialogScene=null;savedMode=null;clearInput();bannerQueue.length=0;
+  loop.stop();syncAudio();
   document.body.classList.remove('playing');$('game').hidden=true;$('landing').hidden=false;$('start').focus({preventScroll:true});
 }
 function formatTime(time){const s=Math.floor(time);return `${Math.floor(s/60)}:${String(s%60).padStart(2,'0')}`;}
@@ -355,14 +476,19 @@ function showRotateHint(){
 addEventListener('orientationchange',()=>setTimeout(()=>{updateOrientation();measureView();showRotateHint();if(run)loop.wake();},150));
 
 /* ---------- HUD ---------- */
+// A field-guide part is English content (tr) or a page string {key,vars} whose vars are content (tr).
+const guideVars=vars=>vars?Object.fromEntries(Object.entries(vars).map(([key,value])=>[key,typeof value==='string'?tr(value):value])):undefined;
+const say=part=>typeof part==='string'?tr(part):part?.key?t(part.key,guideVars(part.vars)):'';
+const partKey=part=>typeof part==='string'?part:JSON.stringify(part??'');
+const guideSymbol=name=>Object.hasOwn(SYMBOLS,name)?symbolSvg(name):iconSvg(name);
 function renderGuidance(){
   property('field-guide','hidden',!guidanceVisible);
   if(!run||!guidanceVisible)return;
-  const step=guidanceStep(run),key=step.symbol+step.kicker+step.title+language()+inputMode;
+  const step=guidanceStep(run),key=step.symbol+partKey(step.kicker)+partKey(step.title)+language()+inputMode;
   if(key!==guideKey){
     guideKey=key;guidePinned=false;guideOpenUntil=stageSmall?0:run.time+7;reservedDirty=true;
-    text('guidance-session',step.kicker?tr(step.kicker):t('guide.field'));
-    $('guidance-symbol').innerHTML=symbolSvg(step.symbol);text('guidance-title',keyHint(tr(step.title)));text('guidance-copy',tr(step.text));
+    text('guidance-session',step.kicker?say(step.kicker):t('guide.field'));
+    $('guidance-symbol').innerHTML=guideSymbol(step.symbol);text('guidance-title',keyHint(say(step.title)));text('guidance-copy',say(step.text));
   }
   const collapsed=stageSmall&&!guidePinned&&run.time>guideOpenUntil;
   if($('field-guide').classList.contains('collapsed')!==collapsed){$('field-guide').classList.toggle('collapsed',collapsed);reservedDirty=true;}
@@ -370,11 +496,70 @@ function renderGuidance(){
 const cooldownCache=new Map();
 function setCooldown(name,remaining,full,disabled){
   const fraction=Math.max(0,Math.min(1,full>0?remaining/full:0)),rounded=Math.round(fraction*50)/50;
-  for(const element of document.querySelectorAll(`[data-ability="${name}"]`)){
+  for(const element of abilityElements[name]){
     const previous=cooldownCache.get(element);
     if(previous!==rounded){element.style.setProperty('--cd',rounded);cooldownCache.set(element,rounded);}
     if(element.disabled!==disabled&&element.classList.contains('ability'))element.disabled=disabled;
   }
+}
+// Dawn Pulse, Sunbreak and Solar Lance stay locked (and unpressable) until an upgrade teaches them.
+function updateLocks(){
+  for(const name of LEARNABLE){
+    const locked=!knows(run,name);
+    for(const element of abilityElements[name]){
+      if(element.classList.contains('locked')===locked)continue;
+      element.classList.toggle('locked',locked);
+      if(locked){element.setAttribute('aria-disabled','true');element.title=t('hud.lockedHint');}else{element.removeAttribute('aria-disabled');element.removeAttribute('title');}
+    }
+  }
+}
+// Party roster: one row (or ring, on small screens) per ally, rebuilt only when the party changes.
+let rosterKey='';const rosterItems=new Map();
+const setFlag=(element,name,on)=>{if((name in element.dataset)!==on){if(on)element.dataset[name]='';else delete element.dataset[name];}};
+function renderRoster(){
+  const roster=$('party-roster'),allies=rosterView(run),key=allies.map(ally=>ally.id+'/'+ally.name).join('|')+':'+language();
+  if(key!==rosterKey){
+    rosterKey=key;rosterItems.clear();
+    roster.replaceChildren(...allies.map(ally=>{
+      const li=document.createElement('li'),name=tr(ally.name);li.className='ally';li.dataset.id=ally.id;li.style.setProperty('--c',ally.color);
+      li.innerHTML='<span class="ally-mark" aria-hidden="true"><span class="ally-initial">'+esc(initialOf(name))+'</span><span class="ally-count"></span></span><span class="ally-name">'+esc(name)+'</span><span class="ally-bar" aria-hidden="true"><i class="ally-fill"></i><i class="ally-shield"></i></span><span class="ally-state"></span>';
+      rosterItems.set(ally.id,{li,name,count:li.querySelector('.ally-count'),state:li.querySelector('.ally-state'),hp:null,shield:null,revive:null,label:''});
+      if(joinedAllies.delete(ally.id))flash(li,'joined',900);
+      return li;
+    }));
+    if(roster.hidden!==!allies.length)roster.hidden=!allies.length;reservedDirty=true;
+  }
+  for(const ally of allies){
+    const item=rosterItems.get(ally.id);if(!item)continue;
+    const hp=Math.round((ally.hp??1)*100)/100,shield=Math.round(ally.shield*100)/100;
+    if(item.hp!==hp){if(item.hp!==null&&hp<item.hp-0.005&&!ally.downed)flash(item.li,'hit',300);item.li.style.setProperty('--hp',hp);item.hp=hp;}
+    if(item.shield!==shield){item.li.style.setProperty('--sh',shield);item.shield=shield;}
+    const revive=Math.round(ally.revive*50)/50;if(item.revive!==revive){item.li.style.setProperty('--rv',revive);item.revive=revive;}
+    setFlag(item.li,'down',ally.downed);setFlag(item.li,'assist',ally.assisted);setFlag(item.li,'low',!ally.downed&&hp<0.3);setFlag(item.li,'busy',ally.busy&&!ally.downed);
+    const seconds=ally.seconds===null?'':String(ally.seconds);
+    if(item.count.textContent!==seconds)item.count.textContent=seconds;
+    // The same words as the fallen ally's label in the world: "Back in 7s", or "Reviving" with Zeyu beside them.
+    const state=!ally.downed?'':ally.assisted?t('hud.reviving'):seconds?t('hud.backIn',{n:seconds}):t('hud.down');
+    if(item.state.textContent!==state)item.state.textContent=state;
+    const label=ally.downed?t('hud.allyDown',{name:item.name}):t('hud.allyLabel',{name:item.name,n:Math.round(hp*10)*10});
+    if(item.label!==label){item.li.setAttribute('aria-label',label);item.label=label;}
+  }
+}
+// Map rule chip: icon, short name, and whose side the rule is on; it glows when the rule turns.
+let ruleKey='';
+function renderRule(){
+  const rule=ruleView(ruleStatus(run),run.areaIndex),chip=$('rule-chip');
+  if(!rule){if(!chip.hidden){chip.hidden=true;reservedDirty=true;}ruleKey='';return;}
+  const key=[rule.id,rule.name,rule.phase,rule.icon,rule.text,language()].join('|');
+  if(key===ruleKey)return;
+  const turned=!chip.hidden&&chip.dataset.rule===rule.id&&chip.dataset.phase!==rule.phase;
+  ruleKey=key;chip.dataset.rule=rule.id;chip.dataset.phase=rule.phase;
+  if(rule.color)chip.style.setProperty('--accent',rule.color);else chip.style.removeProperty('--accent');
+  const side=t(rule.phase==='kind'?'hud.ruleKind':'hud.ruleHostile');
+  $('rule-icon').innerHTML=iconSvg(rule.icon,'roots');text('rule-name',tr(rule.name));text('rule-phase',side);
+  chip.title=rule.text?tr(rule.text):'';chip.setAttribute('aria-label',t('hud.rule')+': '+tr(rule.name)+' · '+side);
+  chip.hidden=false;reservedDirty=true;
+  if(turned)flash(chip,'flip',1200);
 }
 function interactionLabel(){
   const interaction=nearbyInteraction(run);
@@ -413,15 +598,18 @@ function render(){
   const p=run.player;
   text('health-number',`${Math.ceil(p.hp)} / ${p.maxHp}`);width('health-fill',p.hp/p.maxHp*100);
   text('run-time',formatTime(run.time));text('kills',run.kills);
-  const busy=run.mode!=='running',cooldownText=remaining=>remaining>0?t('hud.seconds',{n:remaining.toFixed(1)}):t('hud.ready');
-  text('slash-cooldown',cooldownText(p.slashCooldown));text('dash-cooldown',cooldownText(p.dashCooldown));text('pulse-cooldown',cooldownText(p.pulseCooldown));
-  text('sunbreak-cooldown',cooldownText(p.sunbreakCooldown));text('lance-cooldown',cooldownText(p.solarLanceCooldown));
+  updateLocks();
+  const busy=run.mode!=='running',locked=name=>!knows(run,name);
+  const cooldownText=(name,remaining)=>locked(name)?t('hud.locked'):remaining>0?t('hud.seconds',{n:remaining.toFixed(1)}):t('hud.ready');
+  text('slash-cooldown',cooldownText('slash',p.slashCooldown));text('dash-cooldown',cooldownText('dash',p.dashCooldown));text('pulse-cooldown',cooldownText('pulse',p.pulseCooldown));
+  text('sunbreak-cooldown',cooldownText('sunbreak',p.sunbreakCooldown));text('lance-cooldown',cooldownText('solarLance',p.solarLanceCooldown));
   setCooldown('slash',p.slashCooldown,COMBAT.slash.cooldown*p.bladeCooldown,busy);
   setCooldown('dash',p.dashCooldown,p.dashInterval||COMBAT.dash.cooldown,busy);
-  setCooldown('pulse',p.pulseCooldown,8,busy);
-  setCooldown('sunbreak',p.sunbreakCooldown,COMBAT.sunbreak.cooldown*p.breakCooldown,busy);
-  setCooldown('solarLance',p.solarLanceCooldown,COMBAT.solarLance.cooldown,busy);
-  text('party-status',p.shield>0?t('hud.ward',{n:Math.ceil(p.shield)}):run.sol.volley>0?t('hud.solVolley'):run.sol.active?t('hud.solActive'):t('hud.solWaiting'));
+  setCooldown('pulse',p.pulseCooldown,8,busy||locked('pulse'));
+  setCooldown('sunbreak',p.sunbreakCooldown,COMBAT.sunbreak.cooldown*p.breakCooldown,busy||locked('sunbreak'));
+  setCooldown('solarLance',p.solarLanceCooldown,COMBAT.solarLance.cooldown,busy||locked('solarLance'));
+  text('party-status',p.shield>0?t('hud.ward',{n:Math.ceil(p.shield)}):'');
+  renderRoster();renderRule();
   const c=run.companion;
   text('companion-status',c.nova>0?t('hud.dawnNova'):c.mend>0?t('hud.dawnMending'):c.cast>0?t('hud.dawnWeaving'):c.mendCooldown>0?t('hud.dawnMendIn',{n:Math.ceil(c.mendCooldown)}):t('hud.dawnMendReady'));
   const boss=run.enemies.find(e=>e.boss&&e.hp>0);
@@ -436,47 +624,93 @@ function render(){
   if(!queued&&run.time>bannerUntil&&$('banner').textContent){text('banner','');reservedDirty=true;}
 }
 
+/* ---------- Events and the frame ---------- */
+// A gifted Hollow's name: the gift's prefix before the Hollow it marks ("Thorned Thorn Sower").
+function giftedName(enemy,id){
+  const base=tr(enemy.bossName||ENEMY_ROLES[enemy.role]?.name||'Hollow'),gift=tr(affixName(id));
+  return language()==='zh'?gift+base:gift+' '+base;
+}
+// First sighting of a gift: the bearer's name with what the gift does, when that fits a glance.
+function announceGift(id,enemy){
+  if(seenGiftBanners.has(id))return;seenGiftBanners.add(id);seenAffixes.add(id);
+  const name=enemy?giftedName(enemy,id):tr(affixName(id)),hint=typeof giftFeature.affixHint==='function'?giftFeature.affixHint(id):'';
+  const full=hint?name+' · '+tr(hint):'';
+  announce(full&&fitsBanner(full)?full:t('ann.affix',{name}),5);
+}
+const onScreen=e=>!!camera&&e.x>=camera.x&&e.x<=camera.x+view.width&&e.y>=camera.y&&e.y<=camera.y+view.height;
+// The map rule turning: the rule's own line when it brings one ("The roots turn against the Choir").
+function announceRule(){
+  const rule=ruleView(ruleStatus(run),run.areaIndex);if(!rule)return;
+  const line=rule.phase==='kind'&&rule.flip?tr(rule.flip):'';
+  announce(line&&fitsBanner(line)?line:t(rule.phase==='kind'?'ann.ruleKind':'ann.ruleHostile',{name:tr(rule.name)}),5);
+}
+function consumeEvents(){
+  for(const event of run.events){
+    audio.sound(event);
+    if(event==='gate-open')announce(t('ann.gate',{token:tr(JOURNEY[run.areaIndex].token)}),8);
+    if(event==='stage'&&run.campaign.stage<5)announce(t('ann.step',{n:run.campaign.stage+1,name:t('hud.stage'+run.campaign.stage)}),4);
+    if(event==='boss-phase')announce(t('ann.phase',{name:tr(run.enemies.find(e=>e.boss&&e.phaseShift>0)?.bossName||AREAS[run.areaIndex].boss)}),4);
+    if(event==='boss'){const arriving=run.enemies.find(e=>e.boss&&e.warning>0),guarded=arriving?.guardMax>0;announce(t(guarded?'ann.bossGuard':'ann.boss',{name:tr(arriving?.bossName||AREAS[run.areaIndex].boss)}));}
+    if(event==='boss-exposed')announce(t('ann.exposed'),3,true);
+    if(event==='boss-guard')announce(t('ann.guardBack'),3,true);
+    if(event==='boss-enraged')announce(t('ann.enraged',{name:activeBossName()}),4,true);
+    if(event==='boss-summon')announce(t('ann.summon',{name:activeBossName()}),3);
+    if(event==='beacon')announce(t('ann.beacon'),3);
+    if(event==='lantern')announce(t('ann.lantern'),3);
+    if(event==='rule-flip')announceRule();
+    if(event==='affix'){
+      // The gifts feature reports the newest gift it saw near Zeyu (read only: the page never writes run state);
+      // the bearer is the nearest Hollow wearing it.
+      const id=run.affixLog?.latest;
+      if(typeof id==='string'){const p=run.player,bearer=run.enemies.filter(e=>e.hp>0&&giftsOf(e).includes(id)).sort((a,b)=>Math.hypot(a.x-p.x,a.y-p.y)-Math.hypot(b.x-p.x,b.y-p.y))[0];announceGift(id,bearer);}
+    }
+  }
+  run.events.length=0;
+}
+// News the HUD reads from the run's state: skills learned, allies joining, falling and standing,
+// and the first gifted Hollow of each gift on screen. State, not events, so nothing is missed.
+function watchRun(){
+  for(const name of learnedSkills(run,knows))if(!learned.has(name)){
+    learned.add(name);announce(t('ann.skill',{name:t('ab.'+name)}),4);
+    for(const element of abilityElements[name])flash(element,'unlocked',1300);
+  }
+  const party=partyWatch.changes(run);
+  for(const ally of party.joined){joinedAllies.add(ally.id);announce(t('ann.recruit',{name:tr(ally.name)}),4);}
+  for(const ally of party.down)announce(t('ann.allyDown',{name:tr(ally.name)}),4);
+  for(const ally of party.up)announce(t('ann.allyUp',{name:tr(ally.name)}),2.5);
+  for(const {id,enemy} of sightAffixes(run,seenAffixes,onScreen))announceGift(id,enemy);
+  if(guidanceVisible){
+    const specialist=run.enemies.find(e=>e.role&&!e.boss&&!seenEnemies.has(e.role));
+    if(specialist){seenEnemies.add(specialist.role);const role=ENEMY_ROLES[specialist.role];announce(tr(role.name)+' · '+tr(role.hint),6);}
+    const newcomer=run.enemies.find(e=>['runner','sentinel','cantor'].includes(e.type)&&!seenEnemies.has(e.type));
+    if(newcomer){seenEnemies.add(newcomer.type);announce(t('ann.'+newcomer.type),5);}
+  }
+}
 function frame(elapsed){
   renderElapsed=elapsed;
   if(['running','ending'].includes(run?.mode)){
-    accumulated+=elapsed;
-    while(accumulated>=1/60&&['running','ending'].includes(run.mode)){
+    // Game speed scales real time; the simulation itself always steps at a fixed 60 Hz.
+    const clock=stepClock(accumulated,elapsed,preferences.speed);accumulated=clock.accumulated;
+    for(let step=0;step<clock.steps&&['running','ending'].includes(run.mode);step++){
       if(run.mode==='running'&&controls.attackHeld())ability('slash');
-      update(run,controls.movement(),1/60);accumulated-=1/60;
+      update(run,controls.movement(),STEP);
     }
   }else accumulated=0;
   if(run){
-    for(const event of run.events){
-      audio.sound(event);
-      if(event==='gate-open')announce(t('ann.gate',{token:tr(JOURNEY[run.areaIndex].token)}),8);
-      if(event==='stage'&&run.campaign.stage<5)announce(t('ann.step',{n:run.campaign.stage+1,name:t('hud.stage'+run.campaign.stage)}),4);
-      if(event==='boss-phase')announce(t('ann.phase',{name:tr(run.enemies.find(e=>e.boss&&e.phaseShift>0)?.bossName||AREAS[run.areaIndex].boss)}),4);
-      if(event==='boss'){const arriving=run.enemies.find(e=>e.boss&&e.warning>0),guarded=arriving?.guardMax>0;announce(t(guarded?'ann.bossGuard':'ann.boss',{name:tr(arriving?.bossName||AREAS[run.areaIndex].boss)}));}
-      if(event==='boss-exposed')announce(t('ann.exposed'),3,true);
-      if(event==='boss-guard')announce(t('ann.guardBack'),3,true);
-      if(event==='boss-enraged')announce(t('ann.enraged',{name:activeBossName()}),4,true);
-      if(event==='boss-summon')announce(t('ann.summon',{name:activeBossName()}),3);
-      if(event==='beacon')announce(t('ann.beacon'),3);
-      if(event==='lantern')announce(t('ann.lantern'),3);
-    }
-    run.events.length=0;
-    if(run.mode==='running'&&guidanceVisible){
-      const specialist=run.enemies.find(e=>e.role&&!e.boss&&!seenEnemies.has(e.role));
-      if(specialist){seenEnemies.add(specialist.role);const role=ENEMY_ROLES[specialist.role];announce(tr(role.name)+' · '+tr(role.hint),6);}
-      const newcomer=run.enemies.find(e=>['runner','sentinel','cantor'].includes(e.type)&&!seenEnemies.has(e.type));
-      if(newcomer){seenEnemies.add(newcomer.type);announce(t('ann.'+newcomer.type),5);}
-    }
+    consumeEvents();
+    if(run.mode==='running')watchRun();
     if(!modal.open&&run.mode==='upgrade')upgrade();
     if(!modal.open&&run.mode==='area-clear')routeClear();
     if(!modal.open&&['victory','defeat'].includes(run.mode))finish();
     render();
   }
-  audio.sync(run);
+  syncAudio();
   return ['running','ending'].includes(run?.mode);
 }
 
 /* ---------- Wiring ---------- */
 for(const [name,icon] of ABILITIES)for(const symbol of document.querySelectorAll(`[data-ability="${name}"] .ability-symbol`))symbol.innerHTML=symbolSvg(icon);
+for(const name of LEARNABLE)for(const element of abilityElements[name])element.insertAdjacentHTML('beforeend','<span class="lock-badge" aria-hidden="true">'+iconSvg('lock')+'</span>');
 for(const button of document.querySelectorAll('.actionbar [data-ability]'))button.addEventListener('click',()=>{ability(button.dataset.ability);canvas.focus({preventScroll:true});});
 $('start').onclick=()=>show(showStart);
 $('controls-button').onclick=()=>show(showHelp);$('world-button').onclick=()=>show(showWorld);$('character-button').onclick=()=>show(showCompanions);
@@ -486,14 +720,15 @@ $('guide-legend-button').onclick=e=>{e.stopPropagation();show(showSymbols);};
 $('field-guide').addEventListener('click',()=>{if(!stageSmall||!run)return;guidePinned=$('field-guide').classList.contains('collapsed');if(!guidePinned)guideOpenUntil=0;reservedDirty=true;renderGuidance();});
 for(const button of document.querySelectorAll('[data-lang]'))button.onclick=()=>chooseLanguage(button.dataset.lang);
 $('close-modal').onclick=closeDialog;
-modal.addEventListener('cancel',e=>{e.preventDefault();if(!['upgrade','area-clear','victory','defeat'].includes(run?.mode))closeDialog();});
+modal.addEventListener('cancel',e=>{e.preventDefault();if(!LOCKED_MODES.includes(run?.mode)){audio.sound('ui-back');closeDialog();}});
 modal.addEventListener('close',()=>{
   if(modal.open)return;
   // A locked dialog (upgrade, travel, result) closed by the browser is shown again by the next frame.
-  if(['upgrade','area-clear','victory','defeat'].includes(run?.mode)){loop.wake();return;}
-  currentDialog=null;returnTo=null;
+  if(LOCKED_MODES.includes(run?.mode)){loop.wake();return;}
+  currentDialog=null;returnTo=null;dialogScene=null;
   // A menu closed without closeDialog() must not leave the journey frozen.
   if(run?.mode==='paused'&&savedMode){run.mode=savedMode;savedMode=null;clearInput();accumulated=0;loop.wake();}
+  syncAudio();
 });
 
 function aimFromPointer(e){
@@ -524,9 +759,16 @@ $('fullscreen-button').onclick=async()=>{
 document.addEventListener('fullscreenchange',()=>{updateFullscreenLabel();measureView();if(run)loop.wake();});
 document.addEventListener('webkitfullscreenchange',()=>{updateFullscreenLabel();measureView();});
 
+const ANSWER_KEYS={Digit1:0,Digit2:1,Digit3:2,Numpad1:0,Numpad2:1,Numpad3:2};
+const ARROWS={ArrowLeft:'left',ArrowUp:'up',ArrowRight:'right',ArrowDown:'down'};
 document.addEventListener('keydown',e=>{
   if(modal.open){
-    if(run?.mode==='upgrade'&&['Digit1','Digit2','Digit3'].includes(e.code)){e.preventDefault();selectUpgrade(upgradeChoices(run)[Number(e.code.slice(-1))-1]?.id);}
+    // Answer screen: 1-3 choose, R rerolls, arrows move between the cards. Held keys never act.
+    if(run?.mode==='upgrade'&&!e.repeat){
+      if(e.code in ANSWER_KEYS){e.preventDefault();selectUpgrade(answerChoices(run)[ANSWER_KEYS[e.code]]?.id);}
+      else if(e.code==='KeyR'){e.preventDefault();rerollOffer();}
+      else if(e.code in ARROWS){e.preventDefault();menu.move(ARROWS[e.code]);}
+    }
     return;
   }
   if(!run)return;
@@ -550,7 +792,7 @@ function updateStartButton(){
   if(loadState.failed){start.textContent=t('landing.reload');$('status').textContent=t('landing.loadError');return;}
   start.textContent=loadState.done?t('landing.play'):t('landing.loading',{n:loadState.count,total:loadState.total});
 }
-applyStatic();
+applyStatic();syncAudio();
 try{
   images=await loadAssets((count,total)=>{loadState={...loadState,count,total};updateStartButton();},fetch,Image,INITIAL_ASSETS);
   loadState={...loadState,done:true};$('start').disabled=false;updateStartButton();

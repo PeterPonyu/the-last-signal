@@ -27,7 +27,10 @@ export function heroPose(p,moving=p.moving){
   return sampleClip('heroReactions','idle',p.idlePhase);
 }
 export function hollowPose(e){return castPose(e,0);}
+// A downed ally (and one still rising after a revive) shows its downed clip; the render layer lays it down.
+const fallen=a=>!!a.downed||a.rise>0;
 export function companionPose(c,moving=c.moving){
+  if(fallen(c))return sampleClip('companionSupport','downed',c.downAge||0);
   if(c.nova>0)return timed('companionSupport','lunarNova',c.nova,COMBAT.lunarNova.duration);
   if(c.mend>0)return timed('companionSupport','mend',c.mend,COMBAT.mend.duration);
   if(c.ward>0)return timed('companionSupport','ward',c.ward,0.8);
@@ -36,6 +39,7 @@ export function companionPose(c,moving=c.moving){
   return sampleClip('companionSupport','idle',c.idlePhase);
 }
 export function solPose(s,moving=s.moving){
+  if(fallen(s))return sampleClip('solActions','downed',s.downAge||0);
   if(s.volley>0)return timed('solActions','solVolley',s.volley,COMBAT.solVolley.duration);
   if(s.ward>0)return timed('solActions','ward',s.ward,0.8);
   if(s.pounce>0)return timed('solActions','pounce',s.pounce,0.55);
@@ -52,6 +56,7 @@ export function castPose(actor,time,moving=actor.moving,hurt){
  const boss=actor.bossRank==='champion'?null:actor.bossKind,name=actor.role||actor.type||(actor.skin==='cantor'?'cantor':actor.skin==='sentinel'?'sentinel':'walker');
  if(actor.npc||actor.body){
   if(!keepers.has(actor.body))return sampleClip('guideActions',guideClips[actor.id],time);
+  if(fallen(actor))return sampleClip('keepersCast',actor.body+'-downed',actor.downAge||0);
   if(actor.cast>0)return timed('keepersCast',actor.body+'-cast',actor.cast,0.6);
   const action=moving?'walk':actor.working?'work':actor.met?'speak':'idle';
   return sampleClip('keepersCast',actor.body+'-'+action,moving?(actor.walkPhase||0)/4:time);

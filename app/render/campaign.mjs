@@ -3,8 +3,7 @@ import {JOURNEY} from '../../content/journey.mjs';
 import {AREAS} from '../../content/game.mjs';
 import {distance} from '../game/geometry.mjs';
 import {visibleAt} from './presentation.mjs';
-import {glow} from './world.mjs';
-import {drawWorldDetail} from './raster-details.mjs';
+import {glow,drawPiece,kitOf} from './world.mjs';
 import {drawDecal,caption,TONES,GROUND} from './decal.mjs';
 
 // World-true radii from the simulation: F reaches a site within 120, a repair holds within 135,
@@ -19,7 +18,7 @@ export function campaignRoads(run){
  roadsByCampaign.set(run.campaign,roads);return roads;
 }
 export function drawCampaignTerrain(ctx,run,camera,reduced,images){
- const c=run.campaign,theme=AREAS[run.areaIndex].detailTheme,t=reduced?0:run.time;
+ const c=run.campaign,t=reduced?0:run.time;
  ctx.save();ctx.lineJoin='round';ctx.lineCap='round';
  // Worn roads: feathered edges instead of hard bands, no painted centre line.
  for(const road of campaignRoads(run))for(const [width,color]of [[144,'#181a181a'],[128,'#1d201e2a'],[112,'#cbb98a1c'],[96,'#d8c69424']]){
@@ -30,17 +29,21 @@ export function drawCampaignTerrain(ctx,run,camera,reduced,images){
   ctx.lineWidth=3;ctx.strokeStyle=c.stage>=2?'#c5dcd38c':'#698e8655';ctx.stroke();
   for(let i=0;i<32;i++){const y=200+i*65,x=1295+Math.sin(y/500)*70;ctx.strokeStyle='#bdd2b044';ctx.beginPath();ctx.moveTo(x-10,y+(t*8%40));ctx.lineTo(x+8,y+(t*8%40));ctx.stroke();}
  }else{
-  const x=1930,y=1230;ctx.translate(x,y);ctx.rotate(run.areaIndex===1?(c.stage>=2?0:-0.38):Math.sin(t*0.25)*0.09);
-  drawWorldDetail(ctx,images,7,0,78,156);
+  // The map's crossing piece between the fork and the hub (the Causeway's turning bridge settles once
+  // Maelin's road is done; the other crossings sway on their turntables).
+  const x=1930,y=1230,crossing=kitOf(AREAS[run.areaIndex])?.pieces.crossing;
+  if(crossing&&visibleAt({x,y},camera,200)){ctx.translate(x,y);ctx.rotate(run.areaIndex===1?(c.stage>=2?0:-0.38):Math.sin(t*0.25)*0.09);
+   drawPiece(ctx,images,AREAS[run.areaIndex],'crossing',0,(crossing.height||156)/2,crossing.height||156,{time:run.time,reduced});}
   ctx.restore();ctx.save();
  }
  // Each road site is framed by its map's plants on a true circle just outside the zone rim.
  for(const r of c.routes){
   if(!visibleAt(r,camera,420))continue;
-  for(let i=0;i<12;i++){const a=i*Math.PI/6+0.26,x=r.x+Math.cos(a)*172,y=r.y+GROUND+Math.sin(a)*172;drawWorldDetail(ctx,images,12+theme,x,y+14,26+(i%3)*7,r.completed?1:0.8);}
+  for(let i=0;i<12;i++){const a=i*Math.PI/6+0.26,x=r.x+Math.cos(a)*172,y=r.y+GROUND+Math.sin(a)*172;drawPiece(ctx,images,AREAS[run.areaIndex],'foliage',x,y+14,26+(i%3)*7,{opacity:r.completed?1:0.8,variant:i});}
  }
  // Barricades are removed, never inserted around living actors.
- for(const b of c.barriers)if(visibleAt(b,camera))drawWorldDetail(ctx,images,15,b.x,b.y+22,120);
+ const barrier=kitOf(AREAS[run.areaIndex])?.pieces.barrier;
+ for(const b of c.barriers)if(visibleAt(b,camera))drawPiece(ctx,images,AREAS[run.areaIndex],'barrier',b.x,b.y+22,barrier?.height||120,{time:run.time,reduced});
  ctx.restore();
 }
 // Captions go to `labels` when given (drawn above actors by the renderer), else straight away.
@@ -79,6 +82,7 @@ export function drawCampaignObjectives(ctx,run,camera,reduced,scale,images,label
   say(ctx,labels,(def.event.kind==='convoy'?'Escort · ':'Hold · ')+Math.floor(event.progress*100)+'%',x,y+radius+30*scale,TONES.objective,scale,y-radius-24*scale,true);
  }
  ctx.save();ctx.translate(event.x,event.y);glow(ctx,0,-25,130,event.complete?'#ffdc7e33':'#a2d6d722');
- drawWorldDetail(ctx,images,AREAS[run.areaIndex].detailTheme*4+1,0,22+(reduced?0:Math.sin(t*3)*1.4),AREAS[run.areaIndex].detailTheme===2?155:135);
+ const piece=kitOf(AREAS[run.areaIndex])?.pieces.event;
+ drawPiece(ctx,images,AREAS[run.areaIndex],'event',0,22+(reduced?0:Math.sin(t*3)*1.4),piece?.height||135,{time:run.time,reduced});
  ctx.restore();
 }

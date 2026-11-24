@@ -1,6 +1,6 @@
-import { ASSETS,AREAS } from '../../content/game.mjs';
+import { ASSETS,AREAS,KITS } from '../../content/game.mjs';
 import { ANIMATIONS } from '../../content/animations.mjs';
-export const INITIAL_ASSETS=['heroActions','heroReactions','companionActions','companionSupport','props','garden','commonCast','gardenCast','rootBoss','keepersCast','guideActions','radiance','worldDetails','openGate'];
+export const INITIAL_ASSETS=['heroActions','heroReactions','companionActions','companionSupport','props','garden','gardenKit','commonCast','gardenCast','rootBoss','keepersCast','guideActions','radiance','worldDetails','openGate'];
 const pending=new WeakMap();
 export async function loadAssets(onProgress=()=>{},fetcher=fetch,ImageType=Image,keys=null,images={}){
   const response=await fetcher('asset-catalog.json');if(!response.ok)throw new Error('Asset catalog unavailable');
@@ -26,7 +26,8 @@ export async function loadAssets(onProgress=()=>{},fetcher=fetch,ImageType=Image
 }
 export function loadAreaAssets(images,index,fetcher=fetch,ImageType=Image){
  if(!AREAS[index])return Promise.reject(new RangeError('Unknown map'));
- const area=AREAS[index],keys=[area.id,area.regionalAsset,area.bossAsset,...(index>0?['solActions']:[])];
+ // Each map brings its floor, its cast, its Warden and its own scenery kit.
+ const area=AREAS[index],keys=[area.id,area.regionalAsset,area.bossAsset,KITS[area.id].asset,...(index>0?['solActions']:[])];
  if(keys.every(key=>images[key]))return Promise.resolve(images);
  return loadAssets(()=>{},fetcher,ImageType,keys,images);
 }

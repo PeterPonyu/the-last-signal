@@ -7,7 +7,7 @@ import { WORLD, AREAS, DIFFICULTIES } from '../../content/game.mjs';
 import { clamp, distance } from '../game/geometry.mjs';
 
 import {renderPosition,followCamera,propAlpha,visibleAt} from './presentation.mjs';
-import {drawWorld,drawAmbient,drawShadow,glow} from './world.mjs';
+import {drawWorld,drawAmbient,drawShadow,glow,drawKitSprite,kitSprite} from './world.mjs';
 import {drawEffects} from './effects.mjs';
 import {drawActorEnergy,drawProjectiles,drawHazardImpact,drawHazardAftermath,drawDefeatEnergy,enemyTelegraph,enemyTelegraphTop,ENERGY} from './combat-vfx.mjs';
 import {canvasFont} from './typography.mjs';
@@ -15,11 +15,17 @@ import {drawSymbol} from './symbols.mjs';
 import {markerLabel,drawObjectivePointer,drawDanger,drawDangerOutline} from './guidance.mjs';
 import {placeMinimap} from './minimap-layout.mjs';
 import {drawDecal,caption,drawGlyph,alpha as withAlpha,TONES,GROUND} from './decal.mjs';
+import {drawEnvironmentGround,drawEnvironmentTop} from './environment-vfx.mjs';
+import {drawAffixes} from './affix-vfx.mjs';
+import {drawGiftEffects} from './gift-vfx.mjs';
+import {drawRecruit,drawPartyGround,drawPartyBars} from './party-vfx.mjs';
 
 const minimapCorners=new WeakMap();
 const sceneryByArea=new WeakMap();
+// Standing scenery joins the depth-sorted actors; extra footprint circles and flat ground decals
+// (drawn under everything by drawWorld) are left out.
 function sceneryFor(area){
-  if(!sceneryByArea.has(area))sceneryByArea.set(area,[...area.obstacles,...area.decorations].map(o=>({...o,prop:true})));
+  if(!sceneryByArea.has(area))sceneryByArea.set(area,[...area.obstacles.filter(o=>!o.part),...area.decorations.filter(d=>!kitSprite(area,d.type)?.flat)].map(o=>({...o,prop:true})));
   return sceneryByArea.get(area);
 }
 // World-true reach of map items (simulation radii): wells heal within 78, a lantern's burst
@@ -66,10 +72,13 @@ export function drawBattlefield(ctx, canvas, images, run, reduced, previousCamer
     ctx.save();ctx.translate(x,y);ctx.scale(face,1);ctx.globalAlpha=alpha;
     ctx.drawImage(image,pose.column*sw,pose.row*sh,sw,sh,-w/2,24-baseline*height,w,height);ctx.restore();
   };
-  const prop=(p,opacity=1)=>sprite(images.props,2,{row:Math.floor(p.type/4),column:p.type%4},p.x,p.y,p.height,0.91,1,opacity);
+  // Map scenery comes from the map's own kit (named types); wells, lanterns and pickups share the
+  // battlefield props atlas (numbered types).
+  const prop=(p,opacity=1)=>typeof p.type==='string'?drawKitSprite(ctx,images,area,p.type,p.x,p.y,{opacity,time,reduced}):sprite(images.props,2,{row:Math.floor(p.type/4),column:p.type%4},p.x,p.y,p.height,0.91,1,opacity);
   ctx.clearRect(0,0,viewWidth,viewHeight);ctx.save();ctx.translate(-camera.x,-camera.y);
   drawWorld(ctx,images,area,run,camera,reduced);
   drawCampaignTerrain(ctx,run,camera,reduced,images);
+  drawEnvironmentGround(ctx,run,camera,reduced,uiScale);
   drawLandmark(ctx,run,camera,reduced,images);
   drawCampaignObjectives(ctx,run,camera,reduced,uiScale,images,labels);
   drawGateway(ctx,run,camera,reduced,guidance,uiScale,images,labels);
@@ -91,12 +100,14 @@ export function drawBattlefield(ctx, canvas, images, run, reduced, previousCamer
     if(guidance&&run.npcMet&&fade>0.6)labels.push({text:'Strike to cleanse',x:l.x,y:l.y+GROUND+reach+30*uiScale,above:l.y+GROUND-reach-24*uiScale,tone:TONES.lantern});
   }
   drawEffects(ctx,images,run,camera,reduced,true,uiScale);
+  drawGiftEffects(ctx,images,run,camera,reduced,true,uiScale);
+  drawPartyGround(ctx,run,camera,reduced,uiScale,alpha);
   drawHazardAftermath(ctx,run,camera,reduced);
   const owners=new Map(run.enemies.map(e=>[e.id,e]));
-  for(const h of run.hazards){drawHazardImpact(ctx,h,reduced,run);drawDanger(ctx,h,uiScale,{...danger,owner:owners.get(h.owner)});}
+  for(const h of run.hazards){if(h.world)continue;drawHazardImpact(ctx,h,reduced,run);drawDanger(ctx,h,uiScale,{...danger,owner:owners.get(h.owner)});}
   // Enemy wind-ups are ground telegraphs: portals, wedges, lanes and channels, all filling to strike.
   const setting=DIFFICULTIES[run.difficulty]||DIFFICULTIES.normal;
-  const focusOf=e=>e.focusId&&e.focusId!=='hero'?run.campaign.npcs.find(n=>n.id===e.focusId)||player:player;
+  const focusOf=e=>e.focusId&&e.focusId!=='hero'?run.campaign.npcs.find(n=>n.id===e.focusId)||(run.party||[]).find(a=>a.id===e.focusId)||player:player;
   for(const e of run.enemies)if(e.hp>0&&visibleAt(e,camera,260))enemyTelegraph(ctx,e,run,{reduced,time:run.time,warningScale:setting.warning,target:focusOf(e)});
   // Pickups: a small mint decal at the true pickup reach, a gem shimmer, and a blink before they fade.
   for(const item of run.pickups){
@@ -115,23 +126,27 @@ export function drawBattlefield(ctx, canvas, images, run, reduced, previousCamer
   for(const e of run.enemies)if(e.hp>0&&visibleAt(e,camera,200)){const posed=renderPosition(e,alpha);if(visibleAt(posed,camera))actors.push(posed);}
   for(const n of run.campaign.npcs)if(visibleAt(n,camera))actors.push({...renderPosition(n,alpha),npc:true});
   for(const e of [{...player,hero:true},{...companion,companion:true},...(sol.active?[{...sol,sol:true}]:[])])if(visibleAt(e,camera))actors.push(e);
+  for(const ally of run.party||[])if(ally.kind==='recruit'&&visibleAt(ally,camera))actors.push({...renderPosition(ally,alpha),recruit:true});
   actors.sort((a,b)=>a.y-b.y);
   for(const e of actors){
     drawShadow(ctx,e,e.prop?e.height:e.sol?54:e.boss?145:96,e.state==='captured'?0.3:e.hp<=0?Math.max(0,1-e.deathAge/0.8):e.warning>0?0:1);
     if(e.npc){drawGuide(ctx,images,run,reduced,guidance,uiScale,e);continue;}
-    if(e.prop){prop(e,propAlpha(e,party));
+    if(e.prop){prop(e,propAlpha(e.reach>e.radius?{...e,radius:e.reach}:e,party));
       if(e.lantern)glow(ctx,e.x,e.y-34,(e.lit?65:38)+(reduced?0:Math.sin(run.time*4+e.id)*3),e.lit?'#ffe7a355':'#e3bd6333');
       // A restored well's basin holds a small steady light (Tier S, no ring).
       if(e.charge===1){glow(ctx,e.x,e.y-44,30,'#fff1b888');drawGlyph(ctx,'cosmos',e.x,e.y-44,reduced?0:run.time*0.8,8,'#fff6d6');}
       continue;}
     if(e.hero){drawSymbol(ctx,'hero',e.x,e.y+28,25);drawActor(e,e.invulnerable>0?0.85:1);}
+    else if(e.recruit){drawRecruit(ctx,images,e,run,reduced,uiScale);}
     else if(e.companion){drawActor(e);}
     else if(e.sol){drawActor(e);}
     else{
       // Arriving enemies stay unhittable inside their portal; the body fades in as the portal fills.
       if(e.warning>0){const total=1.2*setting.warning,p=clamp(1-e.warning/total,0,1);if(p>0.72)drawActor(e,(p-0.72)/0.28*0.7);continue;}
+      drawAffixes(ctx,e,run,reduced,false);
       drawActor(e,e.hp<=0?Math.max(0.1,1-e.deathAge/0.8):1);
       if(e.hp<=0)continue;
+      drawAffixes(ctx,e,run,reduced,true);
       if((e.guarded||e.type==='sentinel')&&e.guardBroken<=0)drawSymbol(ctx,'shield',e.x+27,e.y-40,23);
 
       if(e.type==='cantor')drawSymbol(ctx,'bell',e.x,e.y-102,25);
@@ -141,9 +156,12 @@ export function drawBattlefield(ctx, canvas, images, run, reduced, previousCamer
   }
   drawProjectiles(ctx,run.shots,camera,reduced,run.areaIndex);
   drawEffects(ctx,images,run,camera,reduced,false,uiScale);
+  drawGiftEffects(ctx,images,run,camera,reduced,false,uiScale);
+  drawEnvironmentTop(ctx,run,camera,reduced,uiScale);
   drawAmbient(ctx,run,camera,reduced);
-  for(const h of run.hazards)drawDangerOutline(ctx,h,uiScale,danger);
+  for(const h of run.hazards)if(!h.world)drawDangerOutline(ctx,h,uiScale,danger);
   for(const e of run.enemies)if(e.hp>0&&e.attack>0&&visibleAt(e,camera,120))enemyTelegraphTop(ctx,e,run,{reduced,time:run.time,target:focusOf(e)});
+  drawPartyBars(ctx,run,camera,uiScale,alpha,reduced);
   const blockers=[...party,...run.enemies.filter(e=>e.hp>0)];
   for(const label of labels){
     ctx.font=canvasFont('label',uiScale);const half=(ctx.measureText(label.text).width+(label.tone?16:44)*uiScale)/2;

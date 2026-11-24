@@ -8,8 +8,8 @@ export function targetNavigation(target,obstacles){
  const field=navigationField(obstacles,target);targetFields.set(target,{cell,obstacles,field});return field;
 }
 
-export function enemyTarget(enemy,player,npcs,enemies,time,difficulty){
- const targetById=id=>id===undefined||id==='hero'?player:npcs.find(n=>n.id===id&&n.state==='active'&&n.hp>0);
+export function enemyTarget(enemy,player,npcs,enemies,time,difficulty,allies=[]){
+ const targetById=id=>id===undefined||id==='hero'?player:npcs.find(n=>n.id===id&&n.state==='active'&&n.hp>0)||allies.find(a=>a.id===id&&a.hp>0&&!a.downed);
  if(enemy.attack>0||enemy.spell>0||enemy.chargeWarning>0||enemy.charge>0)return targetById(enemy.focusId)||null;
  if(enemy.boss||enemy.provokedUntil>time){enemy.focusId='hero';return player;}
  const current=targetById(enemy.focusId);
@@ -22,6 +22,14 @@ export function enemyTarget(enemy,player,npcs,enemies,time,difficulty){
   if(enemies.filter(e=>e!==enemy&&e.hp>0&&e.focusId===npc.id).length>=cap)continue;
   const score=gap*(raider?0.65:0.9)-(enemy.focusId===npc.id?45:0);
   if(score<best){selected=npc;best=score;}
+ }
+ // Allies that are fighting nearby draw attention too, a little less eagerly than keepers.
+ for(const ally of allies){
+  const gap=distance(enemy,ally);
+  if(ally.hp<=0||ally.downed||gap>480)continue;
+  if(enemies.filter(e=>e!==enemy&&e.hp>0&&e.focusId===ally.id).length>=cap)continue;
+  const score=gap*(raider?0.75:1.05)-(enemy.focusId===ally.id?45:0);
+  if(score<best){selected=ally;best=score;}
  }
  enemy.focusId=selected===player?'hero':selected.id;enemy.focusUntil=time+0.65;return selected;
 }
@@ -79,7 +87,8 @@ export function hasAttackSlot(enemies,enemy,difficulty,kind){
 // A new ground warning must leave a nearby, unobstructed escape destination.
 // Existing attacks keep their committed timing; only a new mark may be declined.
 export function hasHazardEscape(player,hazards,candidate,obstacles){
-  const marks=[...hazards.filter(h=>h.life>0&&!h.triggered),candidate];
+  // Map-rule marks that only strike Hollow are safe ground for the hero.
+  const marks=[...hazards.filter(h=>h.life>0&&!h.triggered&&h.targets!=='enemies'),candidate];
   const safe=q=>q.x>=WORLD.left&&q.x<=WORLD.right&&q.y>=WORLD.top&&q.y<=WORLD.bottom&&
     clearPath(player,q,obstacles,20)&&marks.every(h=>{const d=distance(q,h);return d>h.radius+20||(h.inner>20&&d<h.inner-20);});
   if(safe(player))return true;

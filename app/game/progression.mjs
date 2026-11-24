@@ -1,7 +1,9 @@
 import {CAMPAIGN,campaignMilestones,NPC_COMBAT} from '../../content/campaign.mjs';
+import {knows} from './answers.mjs';
 import {AREAS} from '../../content/game.mjs';
 import {distance,moveBody,navigationField,directionTo} from './geometry.mjs';
 import {moveAlly,resetAllyMotion} from './ally-ai.mjs';
+import {speedFactor} from './environment.mjs';
 
 export function createCampaignArea(run){
  const def=CAMPAIGN[run.areaIndex],seed=(run.initialSeed+run.areaIndex*17)>>>0;
@@ -26,7 +28,7 @@ export function chooseRoute(run,id){
  if(!r||!['available','retry'].includes(r.status)||r.completed||distance(run.player,r)>130)return false;
  if(!c.choice){c.choice=id;c.history.push({kind:'choice',id,time:run.time});run.routeChoices[run.areaIndex]=id;}
  r.status='active';const npc=c.npcs.find(n=>n.id===r.npc);Object.assign(npc,{met:true,state:'active',hp:npc.maxHp,invulnerable:1.5,cast:0,fireClock:0.6,shield:0,shieldTime:0});resetAllyMotion(npc);
- campaignNotice(run,'Protect '+npc.name+(r.kind==='repair'?' during the repair':' on the walk to the gathering')+'; Dawn Pulse shields keepers.');return true;
+ campaignNotice(run,'Protect '+npc.name+(r.kind==='repair'?' during the repair':' on the walk to the gathering')+(knows(run,'pulse')?'; Dawn Pulse shields keepers.':'.'));return true;
 }
 export function failRoute(run,npc){
  const c=run.campaign,route=c.routes.find(r=>r.npc===npc.id);
@@ -63,18 +65,18 @@ export function updateProgression(run,dt){
   if(route.status==='active'&&npc.hp>0){
    if(route.kind==='repair'){
     if(!npc.evading&&npc.cast<=0){
-     if(distance(npc,route)>30)moveAlly(npc,route,c.obstacles,dt,{speed:95,start:30,stop:20});
+     if(distance(npc,route)>30)moveAlly(npc,route,c.obstacles,dt,{speed:95*speedFactor(run,npc),start:30,stop:20});
      if(distance(p,route)<135&&distance(npc,route)<100)route.progress=Math.min(1,route.progress+dt/18);
     }
    }else{
     const d=distance(npc,def.hub);
-    if(distance(p,npc)<240&&d>30&&npc.cast<=0&&!npc.evading)moveAlly(npc,def.hub,c.obstacles,dt,{speed:95,start:32,stop:25});
+    if(distance(p,npc)<240&&d>30&&npc.cast<=0&&!npc.evading)moveAlly(npc,def.hub,c.obstacles,dt,{speed:95*speedFactor(run,npc),start:32,stop:25});
     route.progress=Math.max(route.progress,1-Math.min(1,d/Math.max(1,distance({x:npc.homeX,y:npc.homeY},def.hub))));
     if(d<45)route.progress=1;
    }
    if(route.progress>=1)finishRoute(run,route);
   }
-  if(route.completed&&route.kind==='repair'&&distance(npc,def.hub)>50&&distance(p,npc)<500)moveAlly(npc,def.hub,c.obstacles,dt,{speed:60,start:50,stop:40});
+  if(route.completed&&route.kind==='repair'&&distance(npc,def.hub)>50&&distance(p,npc)<500)moveAlly(npc,def.hub,c.obstacles,dt,{speed:60*speedFactor(run,npc),start:50,stop:40});
  }
  const selected=c.routes.find(r=>r.id===c.choice),previous=c.stage;
  if(c.milestones.length)c.stage=Math.max(c.stage,1);
@@ -91,7 +93,7 @@ export function updateProgression(run,dt){
  if(c.milestones.length>=3&&c.event.complete)c.stage=Math.max(c.stage,3);
  if(c.milestones.length===4&&c.lieutenantDefeated)c.stage=Math.max(c.stage,4);
  if(run.gateOpen)c.stage=5;
- if(c.stage!==previous){if(run.areaIndex===2&&c.stage>=2&&!c.visitorsArrived){c.visitorsArrived=true;for(let i=0;i<2;i++){const road=CAMPAIGN[i].routes.find(r=>r.id===run.routeChoices[i]);if(road){const npc=CAMPAIGN[i].npcs.find(n=>n.id===road.npc);c.npcs.push({...npc,x:def.hub.x-120+i*240,y:def.hub.y+115,met:false,moving:false,walkPhase:0,text:'You opened '+road.name+', so I could reach the Court.'});}}}c.changedAt=run.time;if(c.stage<5)campaignNotice(run,def.messages[c.stage]);if(c.stage>=2&&c.barriers.length){c.barriers=[];c.obstacles=[...AREAS[run.areaIndex].obstacles];c.npcNavigation=navigationField(c.obstacles,def.hub);c.eventNavigation=navigationField(c.obstacles,def.arena);run.navClock=0;}c.history.push({kind:'stage',stage:c.stage,time:run.time});run.events.push('stage');}
+ if(c.stage!==previous){if(run.areaIndex===2&&c.stage>=2&&!c.visitorsArrived){c.visitorsArrived=true;for(let i=0;i<2;i++){const road=CAMPAIGN[i].routes.find(r=>r.id===run.routeChoices[i]);if(road){const npc=CAMPAIGN[i].npcs.find(n=>n.id===road.npc);if((run.party||[]).some(a=>a.id==='recruit-'+npc.id))continue;c.npcs.push({...npc,x:def.hub.x-120+i*240,y:def.hub.y+115,met:false,moving:false,walkPhase:0,text:'You opened '+road.name+', so I could reach the Court.'});}}}c.changedAt=run.time;if(c.stage<5)campaignNotice(run,def.messages[c.stage]);if(c.stage>=2&&c.barriers.length){c.barriers=[];c.obstacles=[...AREAS[run.areaIndex].obstacles];c.npcNavigation=navigationField(c.obstacles,def.hub);c.eventNavigation=navigationField(c.obstacles,def.arena);run.navClock=0;}c.history.push({kind:'stage',stage:c.stage,time:run.time});run.events.push('stage');}
 }
 export function campaignTarget(run){
  const c=run.campaign,def=CAMPAIGN[run.areaIndex];

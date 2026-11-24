@@ -11,8 +11,12 @@ export function createPolicy(policy='tactical',{routePlan=null,upgradeFamily=nul
  let goalKey='',field=[],steering={x:0,y:0},decision=0;
  return run=>{
   if(run.mode==='upgrade'){
-   const offers=upgradeChoices(run),defense=offers.find(c=>c.family==='Dawn'),preferred=offers.find(c=>c.family===upgradeFamily);
-   chooseUpgrade(run,preferred?preferred.id:run.player.hp<run.player.maxHp*0.65&&defense?defense.id:offers[0].id);
+   // A sensible player learns new skills first, then follows its chosen family, guards its health,
+   // and otherwise takes the rarest gift on offer.
+   const offers=upgradeChoices(run),skill=offers.find(c=>c.kind==='skill'),defense=offers.find(c=>c.family==='Dawn'),preferred=offers.find(c=>c.family===upgradeFamily);
+   const rank={radiant:3,rare:2,common:1},best=[...offers].sort((a,b)=>(rank[b.rarity]||1)-(rank[a.rarity]||1))[0];
+   const pick=skill||preferred||(run.player.hp<run.player.maxHp*0.65&&defense)||best;
+   if(pick)chooseUpgrade(run,pick.id);
   }
   if(run.mode==='area-clear'){advanceArea(run);goalKey='';}
   if(run.mode!=='running')return {};
@@ -48,7 +52,7 @@ export function createPolicy(policy='tactical',{routePlan=null,upgradeFamily=nul
    if(policy==='tactical'){
     let ax=0,ay=0;
     for(const e of run.enemies){const d=distance(e,p);if(e.warning<=0&&d<105){ax+=(p.x-e.x)/(d||1)*(105-d)/80;ay+=(p.y-e.y)/(d||1)*(105-d)/80;}}
-    for(const h of run.hazards){const d=distance(h,p);if(d<h.radius+38&&d>=Math.max(0,(h.inner||0)-18)){ax+=(p.x-h.x)/(d||1)*2.4;ay+=(p.y-h.y)/(d||1)*2.4;}}
+    for(const h of run.hazards){if(h.targets==='enemies')continue;const d=distance(h,p);if(d<h.radius+38&&d>=Math.max(0,(h.inner||0)-18)){ax+=(p.x-h.x)/(d||1)*2.4;ay+=(p.y-h.y)/(d||1)*2.4;}}
     // Step sideways out of a telegraphed charge lane.
     for(const e of run.enemies)if(e.hp>0&&(e.chargeWarning>0||e.charge>0)){const rx=p.x-e.x,ry=p.y-e.y,along=rx*e.chargeX+ry*e.chargeY,side=rx*-e.chargeY+ry*e.chargeX;if(along>-20&&along<420&&Math.abs(side)<70){const sign=side<0?-1:1;ax+=-e.chargeY*sign*2.2;ay+=e.chargeX*sign*2.2;}}
     for(const s of run.shots)if(s.hostile&&distance(s,p)<110){const cross=(p.x-s.x)*s.vy-(p.y-s.y)*s.vx,sign=cross<0?-1:1;ax+=s.vy/225*sign;ay-=s.vx/225*sign;}
@@ -58,10 +62,16 @@ export function createPolicy(policy='tactical',{routePlan=null,upgradeFamily=nul
   if(policy==='tactical'){
    const near=run.enemies.filter(e=>e.hp>0&&e.warning<=0&&distance(e,p)<280).sort((a,b)=>distance(a,p)-distance(b,p));
    const target=near.find(e=>e.boss||e.lieutenant||e.guarded)||near[0];
+   // Solar Lance (once learned) opens on a boss or a distant threat, as a skilled player would.
+   const far=run.enemies.filter(e=>e.hp>0&&e.warning<=0&&distance(e,p)<600).sort((a,b)=>(b.boss?1:0)-(a.boss?1:0)||distance(a,p)-distance(b,p))[0];
+   if(far&&(far.boss||distance(far,p)>200))requestAbility(run,'solarLance',{x:far.x-p.x,y:far.y-p.y});
    if(target){const aim={x:target.x-p.x,y:target.y-p.y};if(target.boss||target.lieutenant||near.length>2)requestAbility(run,'sunbreak',aim);if(distance(target,p)<COMBAT.slash.range+p.bladeRange)requestAbility(run,'slash',aim);}
    if(near.filter(e=>distance(e,p)<190).length>=3||near.some(e=>e.boss&&distance(e,p)<165))useAbility(run,'pulse');
    if(c.npcs.some(n=>n.state==='active'&&n.hp<n.maxHp*0.6&&distance(n,p)<200&&n.shield<=0))useAbility(run,'pulse');
-   if(run.hazards.some(h=>h.warning<0.3&&distance(h,p)<h.radius&&distance(h,p)>=(h.inner||0)))requestAbility(run,'dash',steering);
+   // Wounded and crowded, a skilled player dashes out of the pack instead of holding ground.
+   const crowd=run.enemies.filter(e=>e.hp>0&&e.warning<=0&&distance(e,p)<95);
+   if(p.hp<p.maxHp*0.45&&crowd.length>=3){const cx=crowd.reduce((s,e)=>s+e.x,0)/crowd.length,cy=crowd.reduce((s,e)=>s+e.y,0)/crowd.length,dx=p.x-cx,dy=p.y-cy,d=Math.hypot(dx,dy)||1;requestAbility(run,'dash',{x:dx/d,y:dy/d});}
+   if(run.hazards.some(h=>h.targets!=='enemies'&&h.warning<0.3&&distance(h,p)<h.radius&&distance(h,p)>=(h.inner||0)))requestAbility(run,'dash',steering);
   }
   return steering;
  };

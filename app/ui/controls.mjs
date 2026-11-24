@@ -50,9 +50,10 @@ export function createControls({body=document.body,touch,stickZone,stick,events}
   for(const name of ['pointerup','pointercancel','lostpointercapture'])stickZone.addEventListener(name,e=>{if(e.pointerId===stickPointer)releaseStick();});
 
   // Touch ability buttons fire on contact; holding the main button keeps swinging.
+  // A locked skill still reports the press, so the page can say it is not learned yet.
   for(const button of touch.querySelectorAll('[data-ability]')){
     const name=button.dataset.ability;
-    button.addEventListener('pointerdown',e=>{e.preventDefault();button.setPointerCapture?.(e.pointerId);button.classList.add('pressed');if(name==='slash')held.touch=true;events.ability(name);});
+    button.addEventListener('pointerdown',e=>{e.preventDefault();button.setPointerCapture?.(e.pointerId);if(!button.classList.contains('locked'))button.classList.add('pressed');if(name==='slash')held.touch=true;events.ability(name);});
     for(const type of ['pointerup','pointercancel','lostpointercapture'])button.addEventListener(type,()=>{button.classList.remove('pressed');if(name==='slash')held.touch=false;});
     button.addEventListener('contextmenu',e=>e.preventDefault());
   }
@@ -82,6 +83,8 @@ export function createControls({body=document.body,touch,stickZone,stick,events}
       navDirection=direction;
       if(edge(PAD.A))events.menu.activate();
       if(edge(PAD.B)||edge(PAD.START))events.menu.back();
+      // The menu's second action (on the answer screen: reroll the offer).
+      if(edge(PAD.Y))events.menu.alt?.();
     }else if(events.isPlaying()){
       if(attackGate&&!pressed[PAD.A])attackGate=false;
       padMove.x=mx;padMove.y=my;held.pad=pressed[PAD.A]&&!attackGate;
